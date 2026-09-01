@@ -542,7 +542,7 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
 
 /* export helper: html2canvas can't rasterise backdrop-filter */
 .exporting .glass{backdrop-filter:none !important;-webkit-backdrop-filter:none !important}
-.glass{backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6)}
+.glass{backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5)}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
@@ -692,7 +692,8 @@ const state = {
   tab:{show:true, active:"library", search:true, accent:"#FA243C"},
   homeInd:true,
   canvas:{on:false, mode:"solid", c1:"#EDE7F4", c2:"#CFC3E4", angle:160,
-          img:null, fit:"cover", dim:0, pad:60, ratio:"auto", radius:28,
+          img:null, imgAR:1, fit:"cover", zoom:100, px:50, py:50, devScale:100,
+          dim:0, pad:60, ratio:"auto", cw:1080, ch:1350, radius:28,
           shadow:45, tilt:0}
 };
 
@@ -724,6 +725,32 @@ function palette(){
    5. SCREEN RENDERER
    ============================================================ */
 const viewport = document.getElementById("viewport");
+let lastBox = "";
+let rafId = null, rafCanvasId = null;
+/* one repaint per frame at most — colour pickers and sliders fire far faster than that */
+function requestRender(){
+  if(rafId) return;
+  rafId = requestAnimationFrame(()=>{ rafId = null; renderScreen(); });
+}
+function requestCanvas(){
+  if(rafCanvasId) return;
+  rafCanvasId = requestAnimationFrame(()=>{ rafCanvasId = null; applyCanvas(); });
+}
+/* dragging the cover sliders moves exactly one box: resize it, don't rebuild the phone */
+function fastCover(){
+  const c = document.querySelector("#screenEl .cover");
+  if(!c) return false;
+  c.style.width = screenMetrics().coverPx + "px";
+  c.style.borderRadius = state.pl.radius + "px";
+  return true;
+}
+/* typing only changes a string: patch that one text node instead of rebuilding the screen */
+function fastText(key, value){
+  const el = document.querySelector(`#screenEl [data-txt="${key}"]`);
+  if(!el) return false;
+  el.textContent = value;
+  return true;
+}
 
 function bgCss(){
   const b = state.bg;
@@ -735,6 +762,140 @@ function artStyle(o){
 }
 function artInner(o,P){ return o.img ? "" : `<span class="ph">${I.note(P.light?"rgba(255,255,255,.62)":"rgba(0,0,0,.30)")}</span>`; }
 
+function screenMetrics(){
+  const d = DEVICES[state.device];
+  const isClassic = d.top === "classic";
+  const sbH = d.top==="island" ? 59 : d.top==="notch" ? 48 : 22;
+  const bottomOffset = (state.homeInd && !isClassic) ? 26 : 12;
+  const bottomH = (state.mini.show?58:0) + (state.tab.show?62:0)
+                + ((state.mini.show && state.tab.show)?8:0) + bottomOffset;
+  const headroom = d.h - sbH - (state.nav.show?48:0) - 80 - (state.act.show?76:0) - bottomH - 76;
+  const coverPx = Math.max(72, Math.min(d.w * state.pl.size/100, headroom));
+  return {d, isClassic, sbH, bottomOffset, bottomH, coverPx};
+}
+function canvasGeom(){
+  const d = DEVICES[state.device], cv = state.canvas;
+  const bez = state.frameOn ? d.bez : [0,0,0];
+  const ds  = cv.on ? Math.max(0.2, (cv.devScale ?? 100)/100) : 1;
+  /* the canvas is sized from the device at FULL size — otherwise shrinking the
+     device shrinks the backdrop with it and nothing appears to change */
+  const fw  = d.w + bez[1]*2, fh = d.h + bez[0] + bez[2];
+  const rad = Math.abs(cv.tilt) * Math.PI/180;
+  const boxW = fw*Math.cos(rad) + fh*Math.sin(rad);
+  const boxH = fw*Math.sin(rad) + fh*Math.cos(rad);
+  const pad  = cv.on ? cv.pad : 26;
+  let cw = boxW + pad*2, ch = boxH + pad*2;
+  if(cv.on && cv.ratio === "custom"){
+    cw = Math.max(200, Math.min(4000, cv.cw||1080));
+    ch = Math.max(200, Math.min(4000, cv.ch||1350));
+  } else if(cv.on && cv.ratio !== "auto"){
+    const [rw,rh] = cv.ratio.split(":").map(Number), r = rw/rh;
+    if(cw/ch < r) cw = ch*r; else ch = cw/r;
+  }
+  return {cw:Math.round(cw), ch:Math.round(ch), ds};
+}
+function bgFillCss(cw,ch){
+  const cv = state.canvas;
+  if(cv.mode === "image" && cv.img){
+    let sizeCss, posCss = "center";
+    if(cv.fit === "custom"){
+      /* 100 % of the slider == exactly "cover" for this image in this box */
+      const ar = cv.imgAR || 1;
+      const coverPct = Math.max(100, 100 * (ch/cw) * ar);
+      sizeCss = (coverPct * cv.zoom / 100).toFixed(2) + "% auto";
+      posCss  = `${cv.px}% ${cv.py}%`;
+    } else {
+      sizeCss = cv.fit === "contain" ? "contain" : "cover";
+    }
+    return `background-image:url('${cv.img}');background-size:${sizeCss};background-position:${posCss};background-color:${cv.c1}`;
+  }
+  if(cv.mode === "gradient") return `background:linear-gradient(${cv.angle}deg,${cv.c1},${cv.c2})`;
+  return `background:${cv.c1}`;
+}
+function devTransform(ds){
+  const cv = state.canvas;
+  const parts = [];
+  if(cv.on && ds !== 1) parts.push(`scale(${ds})`);
+  if(cv.on && cv.tilt)  parts.push(`rotate(${cv.tilt}deg)`);
+  return parts.length ? `transform:${parts.join(" ")};` : "";
+}
+function devShadowCss(){
+  const sh = state.canvas.shadow;
+  return sh<=0 ? "none"
+    : `0 ${Math.round(10+sh*0.42)}px ${Math.round(24+sh*0.85)}px rgba(0,0,0,${(0.06+sh*0.0035).toFixed(3)})`;
+}
+
+/* Any redraw must leave the backdrop node in place — recreating it re-parses and
+   re-decodes the (often multi-MB) background image on every single frame. */
+function syncBackdrop(el){
+  const cv = state.canvas;
+  const {cw, ch} = canvasGeom();
+  let fill = el.querySelector(".bg-fill");
+  if(!cv.on){
+    if(fill) fill.remove();
+    const d0 = el.querySelector(".bg-dim"); if(d0) d0.remove();
+    return;
+  }
+  if(!fill){
+    fill = document.createElement("div");
+    fill.className = "bg-fill";
+    el.prepend(fill);
+    fill.dataset.rev = "";
+  }
+  {
+    if(cv.mode === "image" && cv.img){
+      if(fill.dataset.rev !== String(cv.imgRev||0)){
+        fill.style.background = "";
+        fill.style.backgroundImage = `url('${cv.img}')`;
+        fill.dataset.rev = String(cv.imgRev||0);
+      }
+      fill.style.backgroundColor = cv.c1;
+      if(cv.fit === "custom"){
+        const ar = cv.imgAR || 1;
+        const coverPct = Math.max(100, 100 * (ch/cw) * ar);
+        fill.style.backgroundSize = (coverPct * cv.zoom / 100).toFixed(2) + "% auto";
+        fill.style.backgroundPosition = `${cv.px}% ${cv.py}%`;
+      } else {
+        fill.style.backgroundSize = cv.fit === "contain" ? "contain" : "cover";
+        fill.style.backgroundPosition = "center";
+      }
+    } else {
+      fill.dataset.rev = "";
+      fill.setAttribute("style", bgFillCss(cw, ch));
+    }
+  }
+
+  let dim = el.querySelector(".bg-dim");
+  if(cv.dim > 0){
+    if(!dim){ dim = document.createElement("div"); dim.className = "bg-dim"; fill.after(dim); }
+    dim.style.background = `rgba(0,0,0,${(cv.dim/100).toFixed(2)})`;
+  } else if(dim) dim.remove();
+}
+
+function applyGeom(el){
+  const cv = state.canvas;
+  const {cw, ch, ds} = canvasGeom();
+  el.style.width = cw + "px";
+  el.style.height = ch + "px";
+  el.style.borderRadius = (cv.on ? cv.radius : 0) + "px";
+  el.classList.toggle("framed", cv.on);
+  const frame = el.querySelector(".frame");
+  if(frame){
+    frame.style.transform = devTransform(ds).replace(/^transform:|;$/g,"") || "";
+    frame.style.setProperty("--dev-shadow", devShadowCss());
+  }
+  const box = cw + "x" + ch;
+  if(box !== lastBox){ lastBox = box; fitIfAuto(); }
+}
+
+/* backdrop-only changes: never touches the phone subtree */
+function applyCanvas(){
+  const el = document.getElementById("canvasEl");
+  if(!el){ renderScreen(); return; }
+  syncBackdrop(el);
+  applyGeom(el);
+}
+
 function renderScreen(){
   const d = DEVICES[state.device];
   const P = palette();
@@ -744,11 +905,7 @@ function renderScreen(){
   const sepLeft = state.list.stars ? 26 : 0;
 
   /* how much room the floating bars claim, so the header can never end up underneath them */
-  const bottomOffset = (state.homeInd && !isClassic) ? 26 : 12;
-  const bottomH = (state.mini.show?58:0) + (state.tab.show?62:0)
-                + ((state.mini.show&&state.tab.show)?8:0) + bottomOffset;
-  const headroom = d.h - sbH - (state.nav.show?48:0) - 80 - (state.act.show?76:0) - bottomH - 76;
-  const coverPx = Math.max(72, Math.min(d.w * state.pl.size/100, headroom));
+  const {bottomOffset, bottomH, coverPx} = screenMetrics();
 
   /* -- status bar -- */
   let statusHtml = "";
@@ -756,7 +913,7 @@ function renderScreen(){
     statusHtml = `
       <div class="statusbar" style="height:${sbH}px;padding-top:${sbPad}px;padding-left:${isClassic?8:30}px;padding-right:${isClassic?8:26}px">
         <div class="sb-left">
-          <span class="sb-time" style="font-size:${isClassic?12:17}px;color:${P.ink}">${esc(state.status.time)}</span>
+          <span class="sb-time" data-txt="status.time" style="font-size:${isClassic?12:17}px;color:${P.ink}">${esc(state.status.time)}</span>
           ${state.status.silent?`<span style="display:flex">${I.bellSlash(P.ink)}</span>`:""}
         </div>
         <div class="sb-right">
@@ -779,8 +936,8 @@ function renderScreen(){
     ].join("");
     navHtml = `
       <div class="navbar">
-        ${state.nav.back?`<span class="glass-btn glass" style="background:${P.glass}">${I.chevL(P.ink)}</span>`:""}
-        ${grp?`<div class="glass-group glass" style="background:${P.glass}">${grp}</div>`:""}
+        ${state.nav.back?`<span class="glass-btn" style="background:${P.glass}">${I.chevL(P.ink)}</span>`:""}
+        ${grp?`<div class="glass-group" style="background:${P.glass}">${grp}</div>`:""}
       </div>`;
   }
 
@@ -789,11 +946,11 @@ function renderScreen(){
   if(state.act.show){
     actHtml = `
       <div class="action-row">
-        ${state.act.shuffle?`<span class="act-circle glass" style="background:${P.glass}">${I.shuffle(P.ink)}</span>`:""}
+        ${state.act.shuffle?`<span class="act-circle" style="background:${P.glass}">${I.shuffle(P.ink)}</span>`:""}
         <div class="play-pill" style="background:${P.pillBg};color:${P.onPill};box-shadow:${P.barShadow}">
-          ${I.play(P.onPill,16)}<span>${esc(state.act.label)}</span>
+          ${I.play(P.onPill,16)}<span data-txt="act.label">${esc(state.act.label)}</span>
         </div>
-        ${state.act.download?`<span class="act-circle glass" style="background:${P.glass}">${I.download(P.ink)}</span>`:""}
+        ${state.act.download?`<span class="act-circle" style="background:${P.glass}">${I.download(P.ink)}</span>`:""}
       </div>`;
   }
 
@@ -803,8 +960,8 @@ function renderScreen(){
       ${state.list.stars?`<span class="star">${t.star?I.star(P.tint):""}</span>`:""}
       ${state.list.art?`<span class="tk-art" style="${artStyle(t)}">${artInner(t,P)}</span>`:""}
       <span class="tk-meta">
-        <span class="tk-title" style="color:${P.ink}">${esc(t.title)}</span>
-        <span class="tk-artist" style="color:${P.tint}">${esc(t.artist)}</span>
+        <span class="tk-title" data-txt="t${i}.title" style="color:${P.ink}">${esc(t.title)}</span>
+        <span class="tk-artist" data-txt="t${i}.artist" style="color:${P.tint}">${esc(t.artist)}</span>
       </span>
       ${state.list.more?`<span class="tk-more">${I.dots(P.tint,20)}</span>`:""}
     </div>`).join("");
@@ -816,8 +973,8 @@ function renderScreen(){
       <div class="mini glass" style="background:${P.barBg};box-shadow:${P.barShadow},inset 0 0 0 .5px ${P.glassLine}">
         <span class="mini-art" style="${artStyle(state.mini)}">${artInner(state.mini,P)}</span>
         <span class="mini-meta">
-          <span class="mini-title" style="color:${P.ink}">${esc(state.mini.title)}</span>
-          <span class="mini-artist" style="color:${P.ink2}">${esc(state.mini.artist)}</span>
+          <span class="mini-title" data-txt="mini.title" style="color:${P.ink}">${esc(state.mini.title)}</span>
+          <span class="mini-artist" data-txt="mini.artist" style="color:${P.ink2}">${esc(state.mini.artist)}</span>
         </span>
         <span class="mini-ctl">
           ${state.mini.playing?I.pause(P.ink,15):I.play(P.ink,15)}
@@ -871,8 +1028,8 @@ function renderScreen(){
       ${navHtml}
       <div class="content">
         <div class="cover-wrap"><div class="cover" style="width:${coverPx}px;border-radius:${state.pl.radius}px;${artStyle(state.pl)}">${artInner(state.pl,P)}</div></div>
-        <div class="pl-title" style="color:${P.ink}">${esc(state.pl.title)}</div>
-        <div class="pl-artist" style="color:${P.ink2}">${esc(state.pl.artist)}</div>
+        <div class="pl-title" data-txt="pl.title" style="color:${P.ink}">${esc(state.pl.title)}</div>
+        <div class="pl-artist" data-txt="pl.artist" style="color:${P.ink2}">${esc(state.pl.artist)}</div>
         ${actHtml}
         <div class="tracks" style="--sep:${P.sep};--sep-left:${sepLeft}px;padding-bottom:${bottomH + 16}px">${tracksHtml}</div>
       </div>
@@ -882,9 +1039,7 @@ function renderScreen(){
 
   const fc = FRAME_COLORS[state.frameColor];
   const cv = state.canvas;
-  const sh = cv.shadow;
-  const devShadow = sh<=0 ? "none"
-    : `0 ${Math.round(10+sh*0.42)}px ${Math.round(24+sh*0.85)}px rgba(0,0,0,${(0.06+sh*0.0035).toFixed(3)})`;
+  const devShadow = devShadowCss();
   let html;
   if(state.frameOn){
     const [bt,bx,bb] = d.bez;
@@ -907,38 +1062,20 @@ function renderScreen(){
     html = `<div class="frame plain" style="--dev-shadow:${devShadow}"><div class="body">${screenHtml}</div></div>`;
   }
 
-  /* ---- the backdrop the device is placed on ---- */
-  const bez = state.frameOn ? d.bez : [0,0,0];
-  const fw = d.w + bez[1]*2, fh = d.h + bez[0] + bez[2];
-  const rad = Math.abs(cv.tilt) * Math.PI/180;
-  const boxW = fw*Math.cos(rad) + fh*Math.sin(rad);
-  const boxH = fw*Math.sin(rad) + fh*Math.cos(rad);
-  const pad  = cv.on ? cv.pad : 26;
-  let cw = boxW + pad*2, ch = boxH + pad*2;
-  if(cv.on && cv.ratio !== "auto"){
-    const [rw,rh] = cv.ratio.split(":").map(Number), r = rw/rh;
-    if(cw/ch < r) cw = ch*r; else ch = cw/r;
-  }
+  /* ---- place the device on its backdrop ---- */
+  const tf = devTransform(canvasGeom().ds);
+  if(tf) html = html.replace('style="', `style="${tf}`);   /* fold scale+tilt into the frame's own style attribute */
 
-  let bgLayer = "";
-  if(cv.on){
-    if(cv.mode === "image" && cv.img){
-      bgLayer = `<div class="bg-fill" style="background-image:url('${cv.img}');background-size:${cv.fit==="contain"?"contain":"cover"};background-color:${cv.c1}"></div>`;
-    } else if(cv.mode === "gradient"){
-      bgLayer = `<div class="bg-fill" style="background:linear-gradient(${cv.angle}deg,${cv.c1},${cv.c2})"></div>`;
-    } else {
-      bgLayer = `<div class="bg-fill" style="background:${cv.c1}"></div>`;
-    }
-    if(cv.dim > 0) bgLayer += `<div class="bg-dim" style="background:rgba(0,0,0,${(cv.dim/100).toFixed(2)})"></div>`;
+  let el = document.getElementById("canvasEl");
+  if(!el){
+    viewport.innerHTML = `<div class="canvas" id="canvasEl"></div>`;
+    el = document.getElementById("canvasEl");
   }
-
-  const tilt = cv.on && cv.tilt ? `transform:rotate(${cv.tilt}deg);` : "";
-  if(tilt) html = html.replace('style="', `style="${tilt}`);   /* fold the tilt into the frame's own style attribute */
-  viewport.innerHTML =
-    `<div class="canvas${cv.on?" framed":""}" id="canvasEl" style="width:${Math.round(cw)}px;height:${Math.round(ch)}px;border-radius:${cv.on?cv.radius:0}px">
-       ${bgLayer}${html}
-     </div>`;
-  fitIfAuto();
+  const oldFrame = el.querySelector(".frame");
+  if(oldFrame) oldFrame.remove();
+  syncBackdrop(el);                      /* keeps the existing background node alive */
+  el.insertAdjacentHTML("beforeend", html);
+  applyGeom(el);
 }
 function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 
@@ -946,30 +1083,43 @@ function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","
    6. CONTROL PANEL
    ============================================================ */
 function get(p){return p.split(".").reduce((o,k)=>o==null?o:o[k],state);}
+function fromDefaults(p){return p.split(".").reduce((o,k)=>o==null?o:o[k], typeof DEFAULTS==="undefined"?null:DEFAULTS);}
+/* a settings file saved by an older build won't have every key — heal it instead of
+   rendering "undefined" into the UI */
+function val(p, fallback){
+  let v = get(p);
+  if(v === undefined || v === null){
+    const d = fromDefaults(p);
+    v = (d === undefined || d === null) ? fallback : d;
+    set(p, v);
+  }
+  return v;
+}
 function set(p,v){const ks=p.split(".");const last=ks.pop();const o=ks.reduce((a,k)=>a[k],state);o[last]=v;}
 
 const SW_BG = ["#FFFFFF","#F2F2F7","#000000","#1C1C1E","#1B8A78","#0B3D5C","#2E2A5E","#7A1F3D","#E8C8D8","#FBE8C8"];
 const SW_ART= ["#D1D1D6","#E5E5EA","#8E8E93","#3A3A3C","#FA243C","#FF9F0A","#30D158","#0A84FF","#BF5AF2","#FFFFFF"];
 
 function seg(path,opts){
-  const cur=get(path);
+  const cur=val(path, opts[0][0]);
   return `<div class="segmented" data-b="${path}">${opts.map(o=>`<button type="button" data-v="${o[0]}" aria-pressed="${cur===o[0]}">${o[1]}</button>`).join("")}</div>`;
 }
 function tog(path,label){
-  return `<label class="toggle"><input type="checkbox" data-b="${path}" ${get(path)?"checked":""}><span class="track"></span><span>${label}</span></label>`;
+  return `<label class="toggle"><input type="checkbox" data-b="${path}" ${val(path,false)?"checked":""}><span class="track"></span><span>${label}</span></label>`;
 }
 function txt(path,label,ph=""){
-  return `<div class="field"><label>${label}</label><input type="text" data-b="${path}" value="${esc(get(path))}" placeholder="${ph}"></div>`;
+  return `<div class="field"><label>${label}</label><input type="text" data-b="${path}" value="${esc(val(path,""))}" placeholder="${ph}"></div>`;
 }
 function colorRow(path,label,swatches){
   return `<div class="field"><label>${label}</label><div class="row">
-    <input type="color" data-b="${path}" value="${get(path)}">
+    <input type="color" data-b="${path}" value="${val(path,swatches[0])}">
     <div class="swatches">${swatches.map(c=>`<button type="button" data-sw="${path}" data-c="${c}" style="background:${c}" title="${c}"></button>`).join("")}</div>
   </div></div>`;
 }
 function rng(path,label,min,max,step,suffix=""){
-  return `<div class="field"><label>${label} <span class="mono" data-out="${path}">${get(path)}${suffix}</span></label>
-    <input type="range" data-b="${path}" data-num="1" min="${min}" max="${max}" step="${step}" value="${get(path)}"></div>`;
+  const v = val(path, Number(min));
+  return `<div class="field"><label>${label} <span class="mono" data-out="${path}">${v}${suffix}</span></label>
+    <input type="range" data-b="${path}" data-num="1" min="${min}" max="${max}" step="${step}" value="${v}"></div>`;
 }
 function artBlock(prefix,labelPrefix,siAttr=""){
   const o = get(prefix);
@@ -1030,13 +1180,25 @@ function renderPanel(){
       ${tog("canvas.on","배경 위에 올리기")}
       <div class="field"><label>배경 종류</label>${seg("canvas.mode",[["solid","단색"],["gradient","그라데이션"],["image","이미지"]])}</div>
       ${state.canvas.mode==="image"
-        ? imgPick("canvas","배경 이미지") + `<div class="field"><label>채우기</label>${seg("canvas.fit",[["cover","꽉 채우기"],["contain","전체 보이기"]])}</div>`
+        ? imgPick("canvas","배경 이미지")
+          + `<div class="field"><label>채우기</label>${seg("canvas.fit",[["cover","꽉 채우기"],["contain","전체 보이기"],["custom","직접 조정"]])}</div>`
+          + (state.canvas.fit==="custom"
+              ? rng("canvas.zoom","이미지 크기",100,320,1,"%")
+                + rng("canvas.px","가로 위치",0,100,1,"%")
+                + rng("canvas.py","세로 위치",0,100,1,"%")
+              : "")
         : colorRow("canvas.c1", state.canvas.mode==="gradient"?"시작 색":"배경 색", ["#EDE7F4","#FFFFFF","#0E0D12","#1B8A78","#F4D9E0","#DDE8F5","#F6EEDC","#2E2A5E"])
           + (state.canvas.mode==="gradient" ? colorRow("canvas.c2","끝 색",["#CFC3E4","#FFFFFF","#000000","#0B3D5C","#FBE8C8","#7A1F3D","#30D158","#FF9F0A"]) + rng("canvas.angle","각도",0,360,1,"°") : "")}
       ${rng("canvas.dim","어둡게",0,70,1,"%")}
       <div class="divider"></div>
+      ${rng("canvas.devScale","기기 크기",30,100,1,"%")}
       ${rng("canvas.pad","여백",0,200,2,"px")}
-      <div class="field"><label>캔버스 비율</label>${seg("canvas.ratio",[["auto","자동"],["1:1","1:1"],["4:5","4:5"],["9:16","9:16"],["16:9","16:9"]])}</div>
+      <div class="field"><label>캔버스 비율</label>${seg("canvas.ratio",[["auto","자동"],["1:1","1:1"],["4:5","4:5"],["9:16","9:16"],["16:9","16:9"],["custom","직접"]])}</div>
+      ${state.canvas.ratio==="custom" ? `<div class="row">
+        <div class="field" style="flex:1"><label>가로 (px)</label><input type="number" data-b="canvas.cw" data-num="1" min="200" max="4000" step="10" value="${state.canvas.cw}"></div>
+        <div class="field" style="flex:1"><label>세로 (px)</label><input type="number" data-b="canvas.ch" data-num="1" min="200" max="4000" step="10" value="${state.canvas.ch}"></div>
+      </div>
+      <div class="hint">기기보다 작게 잡으면 잘려 보여요. 여백 슬라이더는 이 모드에선 무시됩니다.</div>` : ""}
       ${rng("canvas.radius","캔버스 모서리",0,64,1,"px")}
       ${rng("canvas.shadow","기기 그림자",0,100,1,"")}
       ${rng("canvas.tilt","기울기",-20,20,1,"°")}
@@ -1114,7 +1276,7 @@ function renderPanel(){
       ${artBlock("mini","앨범")}
       ${tog("mini.playing","일시정지 아이콘으로")}
       <div class="field"><label>목록에서 가져오기</label>
-        <select id="miniFrom"><option value="">— 선택 —</option>${state.tracks.map((t,i)=>`<option value="${i}">${esc(t.title||"제목 없음")}</option>`).join("")}</select>
+        <select id="miniFrom"><option value="">— 선택 —</option></select>
       </div>
     </div>
   </details>
@@ -1247,8 +1409,10 @@ function refreshPreview(el,o){
 /* ============================================================
    8. EVENT WIRING
    ============================================================ */
-const REPANEL = new Set(["bg.mode","tintMode","act.pillMode","canvas.mode"]);
+const REPANEL = new Set(["bg.mode","tintMode","act.pillMode","canvas.mode","canvas.fit","canvas.ratio"]);
 const panelBody = document.getElementById("panelBody");
+
+const FAST = new Set(["pl.title","pl.artist","act.label","status.time","mini.title","mini.artist"]);
 
 function readControl(el){
   const p = el.dataset.b;
@@ -1268,21 +1432,34 @@ function readControl(el){
     const prev = field && field.querySelector(".thumb-prev");
     if(prev) refreshPreview(prev, targetObj(p.replace(/\.color$/,"")));
   }
-  renderScreen();
+  /* backdrop sliders never touch the phone itself — update it in place */
+  if(p.startsWith("canvas.") && !REPANEL.has(p)) requestCanvas();
+  else if((p === "pl.size" || p === "pl.radius") && fastCover()) { /* handled in place */ }
+  else requestRender();
   if(REPANEL.has(p)) renderPanel();
 }
 
 panelBody.addEventListener("input", e=>{
   const el = e.target;
-  if(el.dataset.b) { readControl(el); return; }
+  if(el.dataset.b){
+    const p = el.dataset.b;
+    if(el.type === "text" && FAST.has(p)){
+      set(p, el.value);
+      if(fastText(p, el.value)) return;
+    }
+    readControl(el); return;
+  }
   if(el.dataset.tb !== undefined && el.dataset.si !== undefined){
-    const t = state.tracks[+el.dataset.si];
-    t[el.dataset.tb] = el.value;
-    if(el.dataset.tb === "color"){
+    const i = +el.dataset.si, key = el.dataset.tb;
+    const t = state.tracks[i];
+    t[key] = el.value;
+    if(key === "color"){
       const prev = el.closest(".song-card").querySelector(".thumb-prev");
       refreshPreview(prev, t);
+      requestRender(); return;
     }
-    renderScreen(); return;
+    if(fastText(`t${i}.${key}`, el.value)) return;
+    requestRender(); return;
   }
   if(el.dataset.ytin !== undefined){
     const prev = el.closest(".thumb-pick").querySelector(".thumb-prev");
@@ -1300,7 +1477,7 @@ panelBody.addEventListener("click", e=>{
   if(segWrap && el.dataset.v !== undefined){
     set(segWrap.dataset.b, el.dataset.v);
     segWrap.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed", b===el));
-    renderScreen();
+    requestRender();
     if(REPANEL.has(segWrap.dataset.b)) renderPanel();
     return;
   }
@@ -1315,12 +1492,18 @@ panelBody.addEventListener("click", e=>{
       const base = el.dataset.sw.replace(/\.color$/,"");
       refreshPreview(prev, targetObj(base));
     }
-    renderScreen(); return;
+    requestRender(); return;
   }
   /* image upload / clear */
   if(el.dataset.upload){
     const t = el.dataset.upload;
-    pickFile(src=>{ const o=targetObj(t); o.img=src; o.yt=""; renderScreen(); renderPanel(); });
+    pickFile(async src=>{
+      const o = targetObj(t); o.img = src; o.yt = "";
+      o.imgRev = (o.imgRev || 0) + 1;
+      const im = await loadImg(src);
+      if(im && im.naturalHeight) o.imgAR = im.naturalWidth / im.naturalHeight;
+      renderScreen(); renderPanel();
+    });
     return;
   }
   if(el.dataset.clearimg){
@@ -1330,7 +1513,7 @@ panelBody.addEventListener("click", e=>{
   /* track actions */
   if(el.dataset.star !== undefined){
     const t = state.tracks[+el.dataset.star]; t.star = !t.star;
-    renderScreen(); renderSongs(); return;
+    requestRender(); renderSongs(); return;
   }
   if(el.dataset.mv !== undefined){
     const i = +el.dataset.mv, d = +el.dataset.dir, j = i + d;
@@ -1359,6 +1542,15 @@ panelBody.addEventListener("click", e=>{
     return;
   }
 });
+
+/* the list changes while the panel is open, so fill this in at the moment it opens */
+function fillMiniFrom(sel){
+  sel.innerHTML = `<option value="">— 선택 —</option>` +
+    state.tracks.map((t,i)=>`<option value="${i}">${i+1}. ${esc(t.title||"제목 없음")}</option>`).join("");
+  sel.value = "";
+}
+panelBody.addEventListener("mousedown", e=>{ if(e.target.id === "miniFrom") fillMiniFrom(e.target); }, true);
+panelBody.addEventListener("focusin",  e=>{ if(e.target.id === "miniFrom") fillMiniFrom(e.target); });
 
 panelBody.addEventListener("change", e=>{
   if(e.target.id === "miniFrom" && e.target.value !== ""){
@@ -1464,8 +1656,20 @@ async function exportPng(){
 }
 exportBtn.onclick = exportPng;
 
+/* keys the saved file doesn't know about keep their current default */
+function mergeDefaults(val, def){
+  if(Array.isArray(def)) return Array.isArray(val) ? val : def;
+  if(def && typeof def === "object"){
+    const out = {};
+    Object.keys(def).forEach(k => out[k] = mergeDefaults(val ? val[k] : undefined, def[k]));
+    if(val && typeof val === "object")
+      Object.keys(val).forEach(k => { if(!(k in out)) out[k] = val[k]; });
+    return out;
+  }
+  return (val === undefined || val === null) ? def : val;
+}
 function saveJson(){
-  const blob = new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  const blob = new Blob([JSON.stringify({_v:2, ...state},null,2)],{type:"application/json"});
   download(blob, "apple-music-maker.json");
 }
 function loadJson(){
@@ -1477,7 +1681,10 @@ function loadJson(){
     r.onload=()=>{
       try{
         const data = JSON.parse(r.result);
-        Object.keys(data).forEach(k=>{ state[k] = data[k]; });
+        const merged = structuredClone(mergeDefaults(data, DEFAULTS));
+        merged.tracks = (Array.isArray(data.tracks) && data.tracks.length ? data.tracks : DEFAULTS.tracks)
+          .map(t => Object.assign(newTrack(), t));
+        Object.keys(DEFAULTS).forEach(k=>{ state[k] = merged[k]; });
         renderScreen(); renderPanel();
       }catch(e){ alert("설정 파일을 읽지 못했어요. 이 도구에서 저장한 .json인지 확인해 주세요."); }
     };
