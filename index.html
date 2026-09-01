@@ -1,0 +1,1499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>애플뮤직 메이커</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS — studio chrome
+   ground: graphite with a faint magenta bias (Apple Music ink)
+   accent: #FA243C, Apple Music red
+   ============================================================ */
+:root{
+  --ground:#f6f4f7;
+  --stage:#ebe7ee;
+  --panel:#ffffff;
+  --panel-2:#f4f1f6;
+  --line:#e0dae6;
+  --line-strong:#cdc4d4;
+  --ink:#1b171f;
+  --ink-2:#4a4353;
+  --muted:#7d7488;
+  --accent:#FA243C;
+  --accent-soft:rgba(250,36,60,.10);
+  --focus:#3b6cf6;
+  --radius:12px;
+  --dot:rgba(27,23,31,.09);
+  color-scheme:light dark;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#141118;
+    --stage:#0e0c12;
+    --panel:#1d1922;
+    --panel-2:#26212d;
+    --line:#332c3c;
+    --line-strong:#463c52;
+    --ink:#f2edf6;
+    --ink-2:#c3bacd;
+    --muted:#8d8399;
+    --accent:#FF3A55;
+    --accent-soft:rgba(255,58,85,.14);
+    --focus:#6f92ff;
+    --dot:rgba(255,255,255,.07);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#141118;
+  --stage:#0e0c12;
+  --panel:#1d1922;
+  --panel-2:#26212d;
+  --line:#332c3c;
+  --line-strong:#463c52;
+  --ink:#f2edf6;
+  --ink-2:#c3bacd;
+  --muted:#8d8399;
+  --accent:#FF3A55;
+  --accent-soft:rgba(255,58,85,.14);
+  --focus:#6f92ff;
+  --dot:rgba(255,255,255,.07);
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"IBM Plex Sans KR","Apple SD Gothic Neo",system-ui,-apple-system,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:4px}
+
+/* ---------- shell ---------- */
+.app{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 400px;
+  height:100vh;
+  overflow:hidden;
+}
+@media (max-width:1080px){
+  .app{grid-template-columns:1fr;height:auto;overflow:visible}
+}
+body.fullview .app{grid-template-columns:1fr}
+body.fullview .panel{display:none}
+body.fullview .brand{opacity:0}
+body.fullview .stage{padding:36px 36px 92px}
+
+/* ---------- stage ---------- */
+.stage{
+  position:relative;
+  background:var(--stage);
+  background-image:radial-gradient(var(--dot) 1px, transparent 1px);
+  background-size:22px 22px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:56px 32px 104px;
+  height:100vh;
+  overflow:hidden;
+}
+@media (max-width:1080px){
+  .stage{height:auto;min-height:70vh;padding:32px 16px 84px;overflow:visible}
+}
+
+.brand{
+  position:absolute;top:0;left:0;right:0;
+  display:flex;align-items:center;gap:12px;
+  padding:18px 24px;
+  pointer-events:none;
+}
+.brand .mark{
+  width:26px;height:26px;border-radius:7px;
+  background:var(--accent);
+  display:grid;place-items:center;
+  box-shadow:0 2px 10px rgba(250,36,60,.35);
+}
+.brand .mark svg{width:15px;height:15px;fill:#fff}
+.brand h1{
+  font-family:"Archivo",sans-serif;
+  font-weight:800;font-size:14px;letter-spacing:-.02em;
+  margin:0;color:var(--ink);
+}
+.brand .sub{
+  font-size:11.5px;color:var(--muted);margin-left:2px;
+  letter-spacing:.01em;
+}
+
+.stage-tools{
+  position:absolute;bottom:0;left:0;right:0;z-index:5;pointer-events:none;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  padding:16px;
+}
+.stage-tools > *{pointer-events:auto}
+#fullBtn{background:var(--panel);box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.zoom{
+  display:flex;align-items:center;gap:2px;
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:999px;padding:3px;
+  box-shadow:0 2px 12px rgba(0,0,0,.06);
+}
+.zoom button{
+  border:0;background:transparent;cursor:pointer;
+  width:28px;height:28px;border-radius:999px;
+  display:grid;place-items:center;color:var(--ink-2);
+}
+.zoom button:hover{background:var(--panel-2)}
+.zoom .val{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+  min-width:46px;text-align:center;color:var(--muted);
+  font-variant-numeric:tabular-nums;
+}
+
+#viewport{
+  transform-origin:center center;
+  transition:transform .18s ease;
+}
+
+/* ---------- panel ---------- */
+.panel{
+  background:var(--panel);
+  border-left:1px solid var(--line);
+  display:flex;flex-direction:column;
+  height:100vh;min-height:0;
+}
+@media (max-width:1080px){ .panel{height:auto;max-height:none;border-left:0;border-top:1px solid var(--line)} }
+
+.panel-head{
+  padding:16px 18px 12px;
+  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+}
+.panel-head .t{
+  font-family:"Archivo",sans-serif;font-weight:700;font-size:12px;
+  letter-spacing:.10em;text-transform:uppercase;color:var(--muted);
+  margin-right:auto;
+}
+.panel-body{overflow-y:auto;padding:0 0 40px;flex:1}
+
+details.sec{border-bottom:1px solid var(--line)}
+details.sec > summary{
+  list-style:none;cursor:pointer;
+  padding:13px 18px;
+  display:flex;align-items:center;gap:10px;
+  font-weight:600;font-size:13.5px;
+  user-select:none;
+}
+details.sec > summary::-webkit-details-marker{display:none}
+details.sec > summary:hover{background:var(--panel-2)}
+details.sec > summary .chev{
+  margin-left:auto;color:var(--muted);
+  transition:transform .18s ease;display:grid;place-items:center;
+}
+details.sec[open] > summary .chev{transform:rotate(90deg)}
+details.sec > summary .num{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  color:var(--muted);width:16px;
+}
+.sec-body{padding:4px 18px 18px;display:flex;flex-direction:column;gap:13px}
+
+/* ---------- controls ---------- */
+.row{display:flex;align-items:center;gap:10px}
+.row.wrap{flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:6px}
+.field > label,.lbl{
+  font-size:11.5px;font-weight:500;color:var(--muted);
+  letter-spacing:.01em;
+}
+input[type=text],input[type=number],select,textarea{
+  width:100%;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  border-radius:9px;
+  padding:8px 10px;
+  font-size:13px;
+  transition:border-color .15s;
+}
+input[type=text]:focus,select:focus,input[type=number]:focus{border-color:var(--line-strong)}
+select{cursor:pointer;appearance:none;background-image:none;padding-right:10px}
+input[type=range]{width:100%;accent-color:var(--accent);height:20px}
+input[type=color]{
+  width:34px;height:30px;padding:0;border:1px solid var(--line);
+  border-radius:8px;background:var(--panel-2);cursor:pointer;
+}
+input[type=color]::-webkit-color-swatch-wrapper{padding:3px}
+input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
+
+.toggle{
+  display:flex;align-items:center;gap:9px;cursor:pointer;
+  font-size:13px;font-weight:500;position:relative;
+}
+.toggle input{
+  position:absolute;left:0;top:0;width:1px;height:1px;
+  opacity:0;margin:0;pointer-events:none;
+}
+.toggle .track{
+  width:38px;height:22px;border-radius:999px;
+  background:var(--line-strong);position:relative;
+  transition:background .18s ease;flex:none;
+}
+.toggle .track::after{
+  content:"";position:absolute;top:2px;left:2px;
+  width:18px;height:18px;border-radius:999px;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.3);
+  transition:transform .18s cubic-bezier(.3,1.3,.5,1);
+}
+.toggle input:checked + .track{background:#34C759}
+.toggle input:checked + .track::after{transform:translateX(16px)}
+.toggle input:focus-visible + .track{outline:2px solid var(--focus);outline-offset:2px}
+
+.segmented{
+  display:flex;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:9px;padding:2px;gap:2px;
+}
+.segmented button{
+  flex:1;border:0;background:transparent;cursor:pointer;
+  padding:6px 4px;border-radius:7px;font-size:12px;font-weight:500;
+  color:var(--muted);transition:.15s;white-space:nowrap;
+}
+.segmented button[aria-pressed=true]{
+  background:var(--panel);color:var(--ink);font-weight:600;
+  box-shadow:0 1px 3px rgba(0,0,0,.12);
+}
+
+.btn{
+  border:1px solid var(--line);background:var(--panel-2);
+  border-radius:9px;padding:8px 12px;font-size:12.5px;font-weight:600;
+  cursor:pointer;transition:.15s;white-space:nowrap;
+}
+.btn:hover{border-color:var(--line-strong)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.06)}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--accent);border-color:transparent;background:transparent;padding:6px 8px}
+.btn.danger:hover{background:var(--accent-soft)}
+.btn.full{width:100%;text-align:center}
+
+.swatches{display:flex;gap:6px;flex-wrap:wrap}
+.swatches button{
+  width:24px;height:24px;border-radius:7px;border:1px solid rgba(0,0,0,.14);
+  cursor:pointer;padding:0;
+}
+.hint{font-size:11px;color:var(--muted);line-height:1.45}
+.hint.warn{color:var(--accent)}
+
+.divider{height:1px;background:var(--line);margin:2px 0}
+
+/* song cards */
+.songs{display:flex;flex-direction:column;gap:10px}
+.song-card{
+  border:1px solid var(--line);border-radius:11px;
+  background:var(--panel-2);padding:10px;
+  display:flex;flex-direction:column;gap:9px;
+}
+.song-card .head{display:flex;align-items:center;gap:8px}
+.song-card .idx{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;color:var(--muted);
+  width:18px;flex:none;
+}
+.song-card .head .grow{flex:1}
+.icon-btn{
+  border:0;background:transparent;cursor:pointer;color:var(--muted);
+  width:24px;height:24px;border-radius:6px;display:grid;place-items:center;
+}
+.icon-btn:hover{background:var(--panel);color:var(--ink)}
+.icon-btn[disabled]{opacity:.28;cursor:default}
+.thumb-pick{display:flex;gap:8px;align-items:flex-start}
+.thumb-prev{
+  width:44px;height:44px;border-radius:6px;flex:none;
+  background:#D1D1D6 center/cover no-repeat;
+  border:1px solid rgba(0,0,0,.10);
+}
+.file-btn{
+  border:1px dashed var(--line-strong);background:transparent;
+  border-radius:8px;padding:6px 9px;font-size:11.5px;cursor:pointer;
+  color:var(--ink-2);
+}
+.file-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ---------- backdrop the device sits on ---------- */
+.canvas{
+  position:relative;flex:none;
+  display:flex;align-items:center;justify-content:center;
+}
+.canvas.framed{overflow:hidden}
+.canvas .bg-fill{position:absolute;inset:0;background-position:center;background-repeat:no-repeat}
+.canvas .bg-dim{position:absolute;inset:0}
+.canvas > .frame{position:relative;z-index:2}
+
+/* ============================================================
+   MOCKUP — iOS Apple Music
+   ============================================================ */
+.frame{position:relative;flex:none}
+.frame .body{
+  position:relative;
+  background:var(--dev-body,#1c1c1e);
+  border-radius:var(--dev-body-r,68px);
+  padding:var(--dev-pad-t,11px) var(--dev-pad-x,11px) var(--dev-pad-b,11px);
+  box-shadow:
+    inset 0 0 0 1.5px rgba(255,255,255,.30),
+    inset 0 0 0 3px rgba(0,0,0,.22),
+    var(--dev-shadow,0 30px 60px rgba(0,0,0,.28));
+}
+.frame.plain .body{padding:0;background:none;border-radius:0;box-shadow:none}
+.frame.plain .screen{box-shadow:var(--dev-shadow,0 24px 48px rgba(0,0,0,.22))}
+
+.screen{
+  position:relative;
+  overflow:hidden;
+  border-radius:var(--screen-r,55px);
+  background:#fff;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  color:#fff;
+  display:flex;flex-direction:column;
+  isolation:isolate;
+}
+.screen *{box-sizing:border-box}
+
+/* device hardware bits */
+.notch{
+  position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:164px;height:31px;background:#000;
+  border-radius:0 0 20px 20px;z-index:40;
+}
+.island{
+  position:absolute;top:12px;left:50%;transform:translateX(-50%);
+  width:125px;height:36px;background:#000;border-radius:20px;z-index:40;
+}
+.speaker{
+  position:absolute;top:-56px;left:50%;transform:translateX(-50%);
+  width:64px;height:7px;border-radius:4px;background:rgba(255,255,255,.16);
+}
+.camera-c{
+  position:absolute;top:-56px;left:calc(50% + 52px);
+  width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.18);
+}
+.home-btn{
+  position:absolute;bottom:-72px;left:50%;transform:translateX(-50%);
+  width:52px;height:52px;border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.22);
+}
+.side-btn{position:absolute;background:var(--dev-btn,#3a3a3c);border-radius:2px}
+
+/* ---- status bar ---- */
+.statusbar{
+  position:relative;z-index:30;
+  display:flex;align-items:center;
+  padding:0 30px;
+  flex:none;
+  font-feature-settings:"tnum";
+}
+.sb-left{display:flex;align-items:center;gap:5px;flex:1}
+.sb-time{
+  font-size:17px;font-weight:600;letter-spacing:-.2px;
+  font-variant-numeric:tabular-nums;
+}
+.sb-right{display:flex;align-items:center;gap:6px}
+.sb-right svg{display:block}
+
+/* ---- nav bar ---- */
+.navbar{
+  display:flex;align-items:center;
+  padding:6px 20px 4px;flex:none;position:relative;z-index:30;
+}
+.glass-btn{
+  width:40px;height:40px;border-radius:999px;
+  display:grid;place-items:center;flex:none;
+}
+.glass-group{
+  margin-left:auto;display:flex;align-items:center;
+  border-radius:999px;height:40px;padding:0 5px;gap:3px;
+}
+.glass-group .gi{width:38px;height:40px;display:grid;place-items:center}
+
+/* ---- scroll area ---- */
+.content{
+  flex:1;display:flex;flex-direction:column;min-height:0;
+  overflow-y:auto;overflow-x:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  scrollbar-width:none;
+}
+.content::-webkit-scrollbar{display:none}
+.cover-wrap,.pl-title,.pl-artist,.action-row{flex:none}
+
+.cover-wrap{display:flex;justify-content:center;padding:10px 0 0}
+.cover{
+  width:70%;aspect-ratio:1;
+  border-radius:10px;
+  background:#D1D1D6 center/cover no-repeat;
+  box-shadow:0 10px 26px rgba(0,0,0,.26);
+  display:grid;place-items:center;
+  overflow:hidden;
+}
+.cover .ph{width:34%;height:34%;opacity:.42}
+
+.pl-title{
+  text-align:center;font-size:25px;font-weight:600;letter-spacing:-.45px;
+  margin:16px 20px 0;line-height:1.22;text-wrap:balance;
+}
+.pl-artist{
+  text-align:center;font-size:19px;font-weight:400;letter-spacing:-.2px;
+  margin:2px 20px 0;
+}
+
+.action-row{
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  padding:18px 20px 6px;
+}
+.act-circle{
+  width:52px;height:52px;border-radius:999px;flex:none;
+  display:grid;place-items:center;
+}
+.play-pill{
+  height:52px;border-radius:999px;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  padding:0 34px;min-width:180px;
+  font-size:18px;font-weight:600;letter-spacing:-.2px;
+}
+
+.tracks{padding:12px 20px 16px;display:flex;flex-direction:column}
+.trk{
+  display:flex;align-items:center;gap:10px;
+  padding:7px 0;position:relative;min-height:60px;
+}
+.trk + .trk::before,.trk.first::before{
+  content:"";position:absolute;top:0;height:.5px;
+  left:var(--sep-left,26px);right:0;
+  background:var(--sep,rgba(255,255,255,.24));
+}
+.star{width:16px;flex:none;display:grid;place-items:center}
+.star svg{width:14px;height:14px}
+.tk-art{
+  width:46px;height:46px;border-radius:4px;flex:none;
+  background:#D1D1D6 center/cover no-repeat;
+  display:grid;place-items:center;overflow:hidden;
+  box-shadow:0 0 0 .5px rgba(0,0,0,.10);
+}
+.tk-art .ph{width:44%;height:44%;opacity:.42}
+.tk-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.tk-title{
+  font-size:17px;font-weight:500;letter-spacing:-.3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.tk-artist{
+  font-size:15px;font-weight:400;letter-spacing:-.2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.tk-more{flex:none;padding-left:4px}
+
+/* ---- bottom stack ---- */
+.bottom{
+  position:absolute;z-index:20;
+  left:0;right:0;bottom:var(--bottom-offset,10px);
+  padding:0 14px;
+  display:flex;flex-direction:column;gap:8px;
+}
+.mini{
+  display:flex;align-items:center;gap:10px;
+  height:58px;border-radius:20px;padding:0 12px;
+}
+.mini-art{
+  width:40px;height:40px;border-radius:6px;flex:none;
+  background:#D1D1D6 center/cover no-repeat;
+  display:grid;place-items:center;overflow:hidden;
+}
+.mini-art .ph{width:46%;height:46%;opacity:.42}
+.mini-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:0}
+.mini-title{font-size:15.5px;font-weight:600;letter-spacing:-.25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-artist{font-size:13px;font-weight:400;letter-spacing:-.15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mini-ctl{display:flex;align-items:center;gap:16px;padding-right:4px;flex:none}
+
+.tabrow{display:flex;align-items:center;gap:8px}
+.tabbar{
+  flex:1;display:flex;align-items:center;justify-content:space-between;
+  height:62px;border-radius:26px;padding:0 6px;
+}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:3px;height:52px;border-radius:20px;
+}
+.tab .ic{height:24px;display:grid;place-items:center}
+.tab .lb{font-size:10.5px;font-weight:500;letter-spacing:-.1px;white-space:nowrap}
+.tab-search{
+  width:62px;height:62px;border-radius:999px;flex:none;
+  display:grid;place-items:center;
+}
+.home-ind{
+  height:0;display:flex;justify-content:center;align-items:flex-end;
+  padding-bottom:8px;margin-top:6px;
+}
+.home-ind i{
+  display:block;width:140px;height:5px;border-radius:3px;
+}
+.pad-b{flex:none}
+
+/* export helper: html2canvas can't rasterise backdrop-filter */
+.exporting .glass{backdrop-filter:none !important;-webkit-backdrop-filter:none !important}
+.glass{backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ STAGE ============ -->
+  <main class="stage">
+    <div class="brand">
+      <span class="mark"><svg viewBox="0 0 24 24"><path d="M20 3.5v12.2a3.4 3.4 0 1 1-2-3.1V7.2l-8 1.6v9.4a3.4 3.4 0 1 1-2-3.1V6.3l12-2.8z"/></svg></span>
+      <h1>APPLE MUSIC MAKER</h1>
+      <span class="sub">iOS 플레이리스트 목업</span>
+    </div>
+
+    <div id="viewport"></div>
+
+    <div class="stage-tools">
+      <div class="zoom">
+        <button type="button" id="zoomOut" aria-label="축소"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8h10"/></svg></button>
+        <span class="val" id="zoomVal">100%</span>
+        <button type="button" id="zoomIn" aria-label="확대"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></button>
+        <button type="button" id="zoomFit" aria-label="맞춤" style="width:auto;padding:0 10px;font-size:11.5px;font-weight:600">맞춤</button>
+      </div>
+      <button type="button" class="btn" id="fullBtn">전체보기</button>
+    </div>
+  </main>
+
+  <!-- ============ PANEL ============ -->
+  <aside class="panel">
+    <div class="panel-head">
+      <span class="t">Controls</span>
+      <button type="button" class="btn ghost" id="themeBtn" title="에디터 테마">🌓</button>
+      <button type="button" class="btn primary" id="exportBtn">PNG 저장</button>
+    </div>
+    <div class="panel-body" id="panelBody"></div>
+  </aside>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+/* ============================================================
+   1. DEVICES  — logical points, iPhone 5c → 17 Pro Max
+   ============================================================ */
+const DEVICES = {
+  "5c"        : {label:"iPhone 5c / 5s / SE(1세대)", w:320, h:568, top:"classic", sr:3,  bez:[92,16,104],  br:50},
+  "6"         : {label:"iPhone 6 / 7 / 8 / SE(2·3세대)", w:375, h:667, top:"classic", sr:4, bez:[98,18,112], br:56},
+  "6plus"     : {label:"iPhone 6+ / 7+ / 8 Plus", w:414, h:736, top:"classic", sr:4, bez:[104,20,118], br:60},
+  "x"         : {label:"iPhone X / XS / 11 Pro", w:375, h:812, top:"notch", sr:40, bez:[12,12,12], br:52},
+  "xr"        : {label:"iPhone XR / 11", w:414, h:896, top:"notch", sr:40, bez:[13,13,13], br:53},
+  "xsmax"     : {label:"iPhone XS Max / 11 Pro Max", w:414, h:896, top:"notch", sr:40, bez:[12,12,12], br:52},
+  "12mini"    : {label:"iPhone 12 mini / 13 mini", w:375, h:812, top:"notch", sr:44, bez:[11,11,11], br:55},
+  "12"        : {label:"iPhone 12 / 12 Pro / 13 / 13 Pro / 14", w:390, h:844, top:"notch", sr:47, bez:[11,11,11], br:58},
+  "12promax"  : {label:"iPhone 12 Pro Max / 13 Pro Max / 14 Plus", w:428, h:926, top:"notch", sr:50, bez:[11,11,11], br:61},
+  "14pro"     : {label:"iPhone 14 Pro / 15 / 15 Pro / 16", w:393, h:852, top:"island", sr:55, bez:[11,11,11], br:66},
+  "14promax"  : {label:"iPhone 14 Pro Max / 15 Plus / 15 Pro Max / 16 Plus", w:430, h:932, top:"island", sr:55, bez:[11,11,11], br:66},
+  "16pro"     : {label:"iPhone 16 Pro / 17 / 17 Pro", w:402, h:874, top:"island", sr:62, bez:[10,10,10], br:72},
+  "16promax"  : {label:"iPhone 16 Pro Max / 17 Pro Max", w:440, h:956, top:"island", sr:62, bez:[10,10,10], br:72},
+  "air"       : {label:"iPhone Air", w:420, h:912, top:"island", sr:62, bez:[9,9,9], br:71}
+};
+const FRAME_COLORS = {
+  "black"  : {label:"블랙 티타늄", body:"#26262a", btn:"#3a3a3e"},
+  "natural": {label:"내추럴 티타늄", body:"#8d8b85", btn:"#a3a09a"},
+  "silver" : {label:"실버", body:"#d5d6d8", btn:"#bfc0c2"},
+  "gold"   : {label:"골드", body:"#c9a97e", btn:"#b3946c"},
+  "white"  : {label:"화이트", body:"#f2f2f4", btn:"#dcdcde"}
+};
+
+/* ============================================================
+   2. COLOR HELPERS
+   ============================================================ */
+function hex2rgb(h){h=h.replace("#","");if(h.length===3)h=h.split("").map(c=>c+c).join("");return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
+function rgb2hex(r,g,b){return "#"+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,"0")).join("");}
+function luminance(hex){const[r,g,b]=hex2rgb(hex).map(v=>{v/=255;return v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4);});return .2126*r+.7152*g+.0722*b;}
+function rgb2hsl(r,g,b){r/=255;g/=255;b/=255;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);let h=0,s=0;const l=(mx+mn)/2;const d=mx-mn;if(d){s=l>.5?d/(2-mx-mn):d/(mx+mn);if(mx===r)h=((g-b)/d+(g<b?6:0));else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;}return[h,s*100,l*100];}
+function hsl2hex(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12;const a=s*Math.min(l,1-l);const f=n=>l-a*Math.max(-1,Math.min(Math.min(k(n)-3,9-k(n)),1));return rgb2hex(f(0)*255,f(8)*255,f(4)*255);}
+/* Apple Music's adaptive tint: keep the hue, push lightness to the far side */
+function adaptiveTint(baseHex,light){
+  const[h,s]=rgb2hsl(...hex2rgb(baseHex));
+  if(s < 12) return light ? "rgba(255,255,255,.60)" : "#8E8E93";   /* neutral ground: plain iOS grey */
+  const sat=Math.max(22,Math.min(70,s));
+  return light?hsl2hex(h,sat,80):hsl2hex(h,Math.max(34,sat),34);
+}
+function deepTint(baseHex,accent){
+  const[h,s]=rgb2hsl(...hex2rgb(baseHex));
+  if(s < 12) return accent;
+  return hsl2hex(h,Math.max(38,Math.min(72,s)),26);
+}
+
+/* ============================================================
+   3. ICONS  (SF Symbols approximations, inline SVG)
+   ============================================================ */
+const I = {
+  signal:(lv,c)=>{let b="";for(let i=0;i<4;i++){const hgt=4+i*2.1,on=i<lv;b+=`<rect x="${i*4.6}" y="${11-hgt}" width="3.2" height="${hgt}" rx="1" fill="${c}" opacity="${on?1:.32}"/>`;}return `<svg width="18" height="11" viewBox="0 0 18 11">${b}</svg>`;},
+  wifi:c=>`<svg width="16" height="11.5" viewBox="0 0 16 12" fill="${c}"><path d="M8 11.2 6.05 8.86a2.9 2.9 0 0 1 3.9 0L8 11.2Z"/><path d="M11.2 7.34a4.9 4.9 0 0 0-6.4 0L3.5 5.9a6.9 6.9 0 0 1 9 0l-1.3 1.44Z"/><path d="M14.1 4.06a9 9 0 0 0-12.2 0L.6 2.6a11 11 0 0 1 14.8 0l-1.3 1.46Z"/></svg>`,
+  battery:(pct,c,chg)=>{const w=Math.max(1.5,22*(pct/100));const fill=chg?"#34C759":(pct<=20?"#FF3B30":c);
+    return `<svg width="27.5" height="13" viewBox="0 0 27.5 13"><rect x=".5" y=".5" width="24" height="12" rx="4" fill="none" stroke="${c}" stroke-opacity=".38"/><rect x="2" y="2" width="${w}" height="9" rx="2.5" fill="${fill}"/><path d="M25.8 4.3c1 .35 1.6 1.05 1.6 2.2s-.6 1.85-1.6 2.2V4.3Z" fill="${c}" fill-opacity=".45"/>${chg?`<path d="M14.6 2.3 9.9 7.35h2.9L11.9 10.7l4.7-5.05h-2.9l.9-3.35Z" fill="#fff" stroke="#0006" stroke-width=".4"/>`:""}</svg>`;},
+  bellSlash:c=>`<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="${c}" stroke-width="1.35" stroke-linecap="round"><path d="M4.4 5.6a3.6 3.6 0 0 1 6.7-1.4M11.6 7v1.9c0 .9.3 1.7.9 2.4H5.1M4.4 8.9V7.4"/><path d="M6.4 13.1a1.7 1.7 0 0 0 3.2 0"/><path d="M2.2 2.2 13.8 13.8"/></svg>`,
+  chevL:c=>`<svg width="12" height="20" viewBox="0 0 12 20" fill="none" stroke="${c}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2 2.5 10 10 18"/></svg>`,
+  personAdd:c=>`<svg width="22" height="19" viewBox="0 0 24 20" fill="${c}"><circle cx="9" cy="5.4" r="4.1"/><path d="M9 10.8c-4.1 0-7.4 2.4-7.4 4.9 0 1.2 1 1.7 2.3 1.7h10.2c1.3 0 2.3-.5 2.3-1.7 0-2.5-3.3-4.9-7.4-4.9Z"/><path d="M19.6 4.5c.5 0 .85.35.85.85V7.2h1.9c.5 0 .85.35.85.85s-.35.85-.85.85h-1.9v1.85c0 .5-.35.85-.85.85s-.85-.35-.85-.85V8.9h-1.9c-.5 0-.85-.35-.85-.85s.35-.85.85-.85h1.9V5.35c0-.5.35-.85.85-.85Z"/></svg>`,
+  share:c=>`<svg width="17" height="21" viewBox="0 0 18 22" fill="${c}"><path d="M9 .8c.28 0 .53.11.75.33l3.3 3.2c.2.2.3.44.3.72 0 .55-.4.95-.95.95a.98.98 0 0 1-.7-.29L9.95 4.2l-.05 8.6c0 .55-.38.95-.9.95s-.9-.4-.9-.95l.05-8.6L6.4 5.71a.98.98 0 0 1-.7.29c-.55 0-.95-.4-.95-.95 0-.28.1-.52.3-.72l3.2-3.2c.22-.22.47-.33.75-.33Z"/><path d="M3.3 21.2h11.4c2.2 0 3.3-1.1 3.3-3.26V10.1c0-2.16-1.1-3.26-3.3-3.26h-2.9v1.85h2.85c.9 0 1.5.55 1.5 1.5v7.7c0 .95-.6 1.5-1.5 1.5H3.35c-.92 0-1.5-.55-1.5-1.5v-7.7c0-.95.58-1.5 1.5-1.5H6.2V6.84H3.3C1.1 6.84 0 7.94 0 10.1v7.84c0 2.16 1.1 3.26 3.3 3.26Z"/></svg>`,
+  dots:(c,s=22)=>`<svg width="${s}" height="${s/3.6}" viewBox="0 0 22 6" fill="${c}"><circle cx="3" cy="3" r="2.5"/><circle cx="11" cy="3" r="2.5"/><circle cx="19" cy="3" r="2.5"/></svg>`,
+  shuffle:c=>`<svg width="24" height="20" viewBox="0 0 24 20" fill="none" stroke="${c}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5h3.4c1.6 0 2.6.7 3.6 2l5 7c1 1.3 2 2 3.6 2H21"/><path d="M2 16h3.4c1.6 0 2.6-.7 3.6-2l.9-1.2M14.1 7.2l.9-1.2c1-1.3 2-2 3.6-2H21"/><path d="m18.4 1.5 3 2.5-3 2.5M18.4 13.5l3 2.5-3 2.5"/></svg>`,
+  play:(c,s=17)=>`<svg width="${s}" height="${s*1.12}" viewBox="0 0 16 18" fill="${c}"><path d="M14.6 8.13a1 1 0 0 1 0 1.74L2.5 17.2A1 1 0 0 1 1 16.33V1.67A1 1 0 0 1 2.5.8l12.1 7.33Z"/></svg>`,
+  pause:(c,s=16)=>`<svg width="${s}" height="${s*1.12}" viewBox="0 0 16 18" fill="${c}"><rect x="2" y="1" width="4.4" height="16" rx="1.5"/><rect x="9.6" y="1" width="4.4" height="16" rx="1.5"/></svg>`,
+  forward:(c,s=24)=>`<svg width="${s}" height="${s*.72}" viewBox="0 0 25 18" fill="${c}"><path d="M11.6 8.13a1 1 0 0 1 0 1.74L2.5 17.2A1 1 0 0 1 1 16.33V1.67A1 1 0 0 1 2.5.8l9.1 7.33Z"/><path d="M23.6 8.13a1 1 0 0 1 0 1.74L14.5 17.2a1 1 0 0 1-1.5-.87V1.67A1 1 0 0 1 14.5.8l9.1 7.33Z"/></svg>`,
+  download:c=>`<svg width="21" height="21" viewBox="0 0 22 22" fill="none" stroke="${c}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2.5v13"/><path d="m5.6 10.4 5.4 5.4 5.4-5.4"/><path d="M2.8 19.5h16.4"/></svg>`,
+  star:c=>`<svg viewBox="0 0 16 16" fill="${c}"><path d="M8 .9l2.06 4.44 4.86.6-3.6 3.3.96 4.8L8 11.62 3.72 14.04l.96-4.8-3.6-3.3 4.86-.6L8 .9Z"/></svg>`,
+  note:c=>`<svg viewBox="0 0 24 24" fill="${c}"><path d="M20 3.2v12.1a3.35 3.35 0 1 1-1.95-3.05V7.1L9.9 8.72v9.2a3.35 3.35 0 1 1-1.95-3.05V6.1L20 3.2Z"/></svg>`,
+  house:c=>`<svg width="24" height="22" viewBox="0 0 24 22" fill="${c}"><path d="M11.05 1.2a1.5 1.5 0 0 1 1.9 0l9.3 7.6c.5.4.2 1.2-.45 1.2H20.3v8.4c0 1.7-.9 2.6-2.6 2.6h-3.1v-6.2c0-.7-.45-1.15-1.15-1.15h-2.9c-.7 0-1.15.45-1.15 1.15V21h-3.1c-1.7 0-2.6-.9-2.6-2.6V10H2.2c-.65 0-.95-.8-.45-1.2l9.3-7.6Z"/></svg>`,
+  grid:c=>`<svg width="22" height="22" viewBox="0 0 22 22" fill="${c}"><rect x="0" y="0" width="9.6" height="9.6" rx="2.6"/><rect x="12.4" y="0" width="9.6" height="9.6" rx="2.6"/><rect x="0" y="12.4" width="9.6" height="9.6" rx="2.6"/><rect x="12.4" y="12.4" width="9.6" height="9.6" rx="2.6"/></svg>`,
+  radio:c=>`<svg width="26" height="20" viewBox="0 0 26 20" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round"><circle cx="13" cy="10" r="2.1" fill="${c}" stroke="none"/><path d="M8.9 6.2a5.4 5.4 0 0 0 0 7.6M17.1 6.2a5.4 5.4 0 0 1 0 7.6"/><path d="M5.4 2.9a10.1 10.1 0 0 0 0 14.2M20.6 2.9a10.1 10.1 0 0 1 0 14.2"/></svg>`,
+  library:c=>`<svg width="22" height="22" viewBox="0 0 22 22" fill="${c}"><rect x="0" y="2" width="4.2" height="18" rx="1.5" opacity=".85"/><rect x="5.6" y="2" width="4.2" height="18" rx="1.5" opacity=".85"/><path d="M13.2 3.6a1.5 1.5 0 0 1 1.85-1.05l4.6 1.25A1.5 1.5 0 0 1 20.7 5.6l-3.6 13.3a1.5 1.5 0 0 1-1.85 1.05l-1.4-.38a1.5 1.5 0 0 1-1.05-1.85L13.2 3.6Z"/></svg>`,
+  search:c=>`<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.3" stroke-linecap="round"><circle cx="10.3" cy="10.3" r="7.5"/><path d="m16 16 5.4 5.4"/></svg>`,
+  plus:c=>`<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round"><path d="M7 1.5v11M1.5 7h11"/></svg>`,
+  up:c=>`<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5 7 4.5l4 4"/></svg>`,
+  down:c=>`<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="${c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5 7 9.5l4-4"/></svg>`,
+  trash:c=>`<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 3.6h9.6M5.4 3.6V2.4h3.2v1.2M3.4 3.6l.5 7.6c.04.6.4.9 1 .9h4.2c.6 0 .96-.3 1-.9l.5-7.6"/></svg>`
+};
+
+/* ============================================================
+   4. STATE
+   ============================================================ */
+let SID = 0;
+const newTrack = (t="",a="")=>({id:++SID,title:t,artist:a,star:false,color:"#D1D1D6",img:null,yt:""});
+
+const state = {
+  device:"16pro", frameOn:true, frameColor:"black", roundScreen:true,
+  bg:{mode:"solid", c1:"#FFFFFF", c2:"#E8E8ED", angle:180},
+  theme:"auto",
+  tintMode:"auto", tint:"#5FBFA9",
+  status:{show:true, time:"9:41", battery:100, charging:false, silent:false, signal:4, wifi:true},
+  nav:{show:true, back:true, person:true, share:true, more:true},
+  pl:{title:"냉정과 열정 사이", artist:"서이현", color:"#D1D1D6", img:null, size:70, radius:10},
+  act:{show:true, shuffle:true, download:true, label:"재생", pillMode:"auto", pillBg:"#FFFFFF"},
+  list:{stars:true, more:true, art:true},
+  tracks:[
+    Object.assign(newTrack("Love so Sweet","ARASHI")),
+    Object.assign(newTrack("おつかれSUMMER","HALCALI"),{star:true}),
+    Object.assign(newTrack("Long Kiss Good Bye","HALCALI")),
+    Object.assign(newTrack("친애하는 소년이여","Hump Back"),{star:true})
+  ],
+  mini:{show:true, title:"Kirari", artist:"Fujii Kaze", color:"#D1D1D6", img:null, playing:false},
+  tab:{show:true, active:"library", search:true, accent:"#FA243C"},
+  homeInd:true,
+  canvas:{on:false, mode:"solid", c1:"#EDE7F4", c2:"#CFC3E4", angle:160,
+          img:null, fit:"cover", dim:0, pad:60, ratio:"auto", radius:28,
+          shadow:45, tilt:0}
+};
+
+/* palette derived from current settings */
+function palette(){
+  const base = state.bg.c1;
+  const light = state.theme==="auto" ? luminance(base) < 0.55 : state.theme==="light";
+  const tint = state.tintMode==="auto" ? adaptiveTint(base, light) : state.tint;
+  return {
+    light,
+    ink:        light ? "#FFFFFF" : "#000000",
+    ink2:       light ? "rgba(255,255,255,.62)" : "rgba(0,0,0,.55)",
+    glass:      light ? "rgba(255,255,255,.17)" : "rgba(0,0,0,.06)",
+    glassLine:  light ? "rgba(255,255,255,.10)" : "rgba(0,0,0,.05)",
+    sep:        light ? "rgba(255,255,255,.22)" : "rgba(0,0,0,.13)",
+    barBg:      light ? "rgba(0,0,0,.34)" : "rgba(255,255,255,.74)",
+    homeInd:    light ? "rgba(255,255,255,.9)" : "rgba(0,0,0,.35)",
+    tint,
+    accent:     state.tab.accent,
+    pillBg:     state.act.pillMode==="auto" ? (light ? "#FFFFFF" : "rgba(120,120,128,.14)") : state.act.pillBg,
+    onPill:     state.act.pillMode==="auto"
+                  ? (light ? deepTint(base, state.tab.accent) : state.tab.accent)
+                  : (luminance(state.act.pillBg) > .55 ? deepTint(base, state.tab.accent) : "#FFFFFF"),
+    barShadow:  light ? "0 6px 24px rgba(0,0,0,.24)" : "0 6px 22px rgba(0,0,0,.13)"
+  };
+}
+
+/* ============================================================
+   5. SCREEN RENDERER
+   ============================================================ */
+const viewport = document.getElementById("viewport");
+
+function bgCss(){
+  const b = state.bg;
+  return b.mode==="gradient" ? `linear-gradient(${b.angle}deg, ${b.c1}, ${b.c2})` : b.c1;
+}
+function artStyle(o){
+  if(o.img) return `background-image:url('${o.img}');background-color:${o.color}`;
+  return `background-color:${o.color}`;
+}
+function artInner(o,P){ return o.img ? "" : `<span class="ph">${I.note(P.light?"rgba(255,255,255,.62)":"rgba(0,0,0,.30)")}</span>`; }
+
+function renderScreen(){
+  const d = DEVICES[state.device];
+  const P = palette();
+  const isClassic = d.top==="classic";
+  const sbH = d.top==="island" ? 59 : d.top==="notch" ? 48 : 22;
+  const sbPad = d.top==="island" ? 20 : d.top==="notch" ? 15 : 0;
+  const sepLeft = state.list.stars ? 26 : 0;
+
+  /* how much room the floating bars claim, so the header can never end up underneath them */
+  const bottomOffset = (state.homeInd && !isClassic) ? 26 : 12;
+  const bottomH = (state.mini.show?58:0) + (state.tab.show?62:0)
+                + ((state.mini.show&&state.tab.show)?8:0) + bottomOffset;
+  const headroom = d.h - sbH - (state.nav.show?48:0) - 80 - (state.act.show?76:0) - bottomH - 76;
+  const coverPx = Math.max(72, Math.min(d.w * state.pl.size/100, headroom));
+
+  /* -- status bar -- */
+  let statusHtml = "";
+  if(state.status.show){
+    statusHtml = `
+      <div class="statusbar" style="height:${sbH}px;padding-top:${sbPad}px;padding-left:${isClassic?8:30}px;padding-right:${isClassic?8:26}px">
+        <div class="sb-left">
+          <span class="sb-time" style="font-size:${isClassic?12:17}px;color:${P.ink}">${esc(state.status.time)}</span>
+          ${state.status.silent?`<span style="display:flex">${I.bellSlash(P.ink)}</span>`:""}
+        </div>
+        <div class="sb-right">
+          ${state.status.signal>0?I.signal(state.status.signal,P.ink):""}
+          ${state.status.wifi?I.wifi(P.ink):""}
+          ${I.battery(state.status.battery,P.ink,state.status.charging)}
+        </div>
+      </div>`;
+  } else {
+    statusHtml = `<div class="statusbar" style="height:${sbH}px"></div>`;
+  }
+
+  /* -- nav bar -- */
+  let navHtml = "";
+  if(state.nav.show){
+    const grp = [
+      state.nav.person?`<span class="gi">${I.personAdd(P.ink)}</span>`:"",
+      state.nav.share?`<span class="gi">${I.share(P.ink)}</span>`:"",
+      state.nav.more?`<span class="gi">${I.dots(P.ink,20)}</span>`:""
+    ].join("");
+    navHtml = `
+      <div class="navbar">
+        ${state.nav.back?`<span class="glass-btn glass" style="background:${P.glass}">${I.chevL(P.ink)}</span>`:""}
+        ${grp?`<div class="glass-group glass" style="background:${P.glass}">${grp}</div>`:""}
+      </div>`;
+  }
+
+  /* -- action row -- */
+  let actHtml = "";
+  if(state.act.show){
+    actHtml = `
+      <div class="action-row">
+        ${state.act.shuffle?`<span class="act-circle glass" style="background:${P.glass}">${I.shuffle(P.ink)}</span>`:""}
+        <div class="play-pill" style="background:${P.pillBg};color:${P.onPill};box-shadow:${P.barShadow}">
+          ${I.play(P.onPill,16)}<span>${esc(state.act.label)}</span>
+        </div>
+        ${state.act.download?`<span class="act-circle glass" style="background:${P.glass}">${I.download(P.ink)}</span>`:""}
+      </div>`;
+  }
+
+  /* -- tracks -- */
+  const tracksHtml = state.tracks.map((t,i)=>`
+    <div class="trk${i===0?" first":""}">
+      ${state.list.stars?`<span class="star">${t.star?I.star(P.tint):""}</span>`:""}
+      ${state.list.art?`<span class="tk-art" style="${artStyle(t)}">${artInner(t,P)}</span>`:""}
+      <span class="tk-meta">
+        <span class="tk-title" style="color:${P.ink}">${esc(t.title)}</span>
+        <span class="tk-artist" style="color:${P.tint}">${esc(t.artist)}</span>
+      </span>
+      ${state.list.more?`<span class="tk-more">${I.dots(P.tint,20)}</span>`:""}
+    </div>`).join("");
+
+  /* -- bottom stack -- */
+  let miniHtml = "";
+  if(state.mini.show){
+    miniHtml = `
+      <div class="mini glass" style="background:${P.barBg};box-shadow:${P.barShadow},inset 0 0 0 .5px ${P.glassLine}">
+        <span class="mini-art" style="${artStyle(state.mini)}">${artInner(state.mini,P)}</span>
+        <span class="mini-meta">
+          <span class="mini-title" style="color:${P.ink}">${esc(state.mini.title)}</span>
+          <span class="mini-artist" style="color:${P.ink2}">${esc(state.mini.artist)}</span>
+        </span>
+        <span class="mini-ctl">
+          ${state.mini.playing?I.pause(P.ink,15):I.play(P.ink,15)}
+          ${I.forward(P.ink,23)}
+        </span>
+      </div>`;
+  }
+
+  let tabHtml = "";
+  if(state.tab.show){
+    const TABS = [
+      {k:"home",  lb:"홈",        ic:I.house},
+      {k:"new",   lb:"새로운 음악", ic:I.grid},
+      {k:"radio", lb:"라디오",     ic:I.radio},
+      {k:"library",lb:"보관함",    ic:I.library}
+    ];
+    const items = TABS.map(t=>{
+      const on = state.tab.active===t.k;
+      const col = on ? state.tab.accent : P.tint;
+      return `<span class="tab" style="${on?`background:${P.glass}`:""}">
+        <span class="ic">${t.ic(col)}</span>
+        <span class="lb" style="color:${on?P.ink:P.tint}">${t.lb}</span>
+      </span>`;
+    }).join("");
+    tabHtml = `
+      <div class="tabrow">
+        <div class="tabbar glass" style="background:${P.barBg};box-shadow:${P.barShadow},inset 0 0 0 .5px ${P.glassLine}">${items}</div>
+        ${state.tab.search?`<div class="tab-search glass" style="background:${P.barBg};box-shadow:${P.barShadow},inset 0 0 0 .5px ${P.glassLine}">${I.search(P.tint)}</div>`:""}
+      </div>`;
+  }
+
+  const bottomHtml = (miniHtml||tabHtml)
+    ? `<div class="bottom" style="--bottom-offset:${bottomOffset}px">${miniHtml}${tabHtml}</div>` : "";
+
+  const homeHtml = (state.homeInd && !isClassic)
+    ? `<div class="home-ind" style="position:absolute;left:0;right:0;bottom:0;z-index:35"><i style="background:${P.homeInd}"></i></div>` : "";
+
+  /* -- hardware overlay -- */
+  let hw = "";
+  if(state.frameOn){
+    if(d.top==="notch") hw = `<div class="notch"></div>`;
+    else if(d.top==="island") hw = `<div class="island"></div>`;
+  }
+
+  const screenRadius = state.frameOn ? d.sr : (state.roundScreen ? d.sr : 0);
+
+  const screenHtml = `
+    <div class="screen" id="screenEl" style="width:${d.w}px;height:${d.h}px;border-radius:${screenRadius}px;background:${bgCss()}">
+      ${hw}
+      ${statusHtml}
+      ${navHtml}
+      <div class="content">
+        <div class="cover-wrap"><div class="cover" style="width:${coverPx}px;border-radius:${state.pl.radius}px;${artStyle(state.pl)}">${artInner(state.pl,P)}</div></div>
+        <div class="pl-title" style="color:${P.ink}">${esc(state.pl.title)}</div>
+        <div class="pl-artist" style="color:${P.ink2}">${esc(state.pl.artist)}</div>
+        ${actHtml}
+        <div class="tracks" style="--sep:${P.sep};--sep-left:${sepLeft}px;padding-bottom:${bottomH + 16}px">${tracksHtml}</div>
+      </div>
+      ${bottomHtml}
+      ${homeHtml}
+    </div>`;
+
+  const fc = FRAME_COLORS[state.frameColor];
+  const cv = state.canvas;
+  const sh = cv.shadow;
+  const devShadow = sh<=0 ? "none"
+    : `0 ${Math.round(10+sh*0.42)}px ${Math.round(24+sh*0.85)}px rgba(0,0,0,${(0.06+sh*0.0035).toFixed(3)})`;
+  let html;
+  if(state.frameOn){
+    const [bt,bx,bb] = d.bez;
+    const sideBtns = isClassic ? "" : `
+      <span class="side-btn" style="left:-2.5px;top:${d.h*0.13}px;width:3px;height:26px;background:${fc.btn}"></span>
+      <span class="side-btn" style="left:-2.5px;top:${d.h*0.20}px;width:3px;height:52px;background:${fc.btn}"></span>
+      <span class="side-btn" style="left:-2.5px;top:${d.h*0.28}px;width:3px;height:52px;background:${fc.btn}"></span>
+      <span class="side-btn" style="right:-2.5px;top:${d.h*0.22}px;width:3px;height:84px;background:${fc.btn}"></span>`;
+    const classicBits = isClassic ? `
+      <span class="speaker" style="top:${-bt/2-4}px"></span>
+      <span class="camera-c" style="top:${-bt/2-5}px"></span>
+      <span class="home-btn" style="bottom:${-bb/2-26}px;border-color:${fc.btn}"></span>` : "";
+    html = `<div class="frame" style="--dev-body:${fc.body};--dev-body-r:${d.br}px;--dev-shadow:${devShadow}">
+      <div class="body" style="padding:${bt}px ${bx}px ${bb}px">
+        <div style="position:relative">${screenHtml}${classicBits}</div>
+        ${sideBtns}
+      </div>
+    </div>`;
+  } else {
+    html = `<div class="frame plain" style="--dev-shadow:${devShadow}"><div class="body">${screenHtml}</div></div>`;
+  }
+
+  /* ---- the backdrop the device is placed on ---- */
+  const bez = state.frameOn ? d.bez : [0,0,0];
+  const fw = d.w + bez[1]*2, fh = d.h + bez[0] + bez[2];
+  const rad = Math.abs(cv.tilt) * Math.PI/180;
+  const boxW = fw*Math.cos(rad) + fh*Math.sin(rad);
+  const boxH = fw*Math.sin(rad) + fh*Math.cos(rad);
+  const pad  = cv.on ? cv.pad : 26;
+  let cw = boxW + pad*2, ch = boxH + pad*2;
+  if(cv.on && cv.ratio !== "auto"){
+    const [rw,rh] = cv.ratio.split(":").map(Number), r = rw/rh;
+    if(cw/ch < r) cw = ch*r; else ch = cw/r;
+  }
+
+  let bgLayer = "";
+  if(cv.on){
+    if(cv.mode === "image" && cv.img){
+      bgLayer = `<div class="bg-fill" style="background-image:url('${cv.img}');background-size:${cv.fit==="contain"?"contain":"cover"};background-color:${cv.c1}"></div>`;
+    } else if(cv.mode === "gradient"){
+      bgLayer = `<div class="bg-fill" style="background:linear-gradient(${cv.angle}deg,${cv.c1},${cv.c2})"></div>`;
+    } else {
+      bgLayer = `<div class="bg-fill" style="background:${cv.c1}"></div>`;
+    }
+    if(cv.dim > 0) bgLayer += `<div class="bg-dim" style="background:rgba(0,0,0,${(cv.dim/100).toFixed(2)})"></div>`;
+  }
+
+  const tilt = cv.on && cv.tilt ? `transform:rotate(${cv.tilt}deg);` : "";
+  if(tilt) html = html.replace('style="', `style="${tilt}`);   /* fold the tilt into the frame's own style attribute */
+  viewport.innerHTML =
+    `<div class="canvas${cv.on?" framed":""}" id="canvasEl" style="width:${Math.round(cw)}px;height:${Math.round(ch)}px;border-radius:${cv.on?cv.radius:0}px">
+       ${bgLayer}${html}
+     </div>`;
+  fitIfAuto();
+}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* ============================================================
+   6. CONTROL PANEL
+   ============================================================ */
+function get(p){return p.split(".").reduce((o,k)=>o==null?o:o[k],state);}
+function set(p,v){const ks=p.split(".");const last=ks.pop();const o=ks.reduce((a,k)=>a[k],state);o[last]=v;}
+
+const SW_BG = ["#FFFFFF","#F2F2F7","#000000","#1C1C1E","#1B8A78","#0B3D5C","#2E2A5E","#7A1F3D","#E8C8D8","#FBE8C8"];
+const SW_ART= ["#D1D1D6","#E5E5EA","#8E8E93","#3A3A3C","#FA243C","#FF9F0A","#30D158","#0A84FF","#BF5AF2","#FFFFFF"];
+
+function seg(path,opts){
+  const cur=get(path);
+  return `<div class="segmented" data-b="${path}">${opts.map(o=>`<button type="button" data-v="${o[0]}" aria-pressed="${cur===o[0]}">${o[1]}</button>`).join("")}</div>`;
+}
+function tog(path,label){
+  return `<label class="toggle"><input type="checkbox" data-b="${path}" ${get(path)?"checked":""}><span class="track"></span><span>${label}</span></label>`;
+}
+function txt(path,label,ph=""){
+  return `<div class="field"><label>${label}</label><input type="text" data-b="${path}" value="${esc(get(path))}" placeholder="${ph}"></div>`;
+}
+function colorRow(path,label,swatches){
+  return `<div class="field"><label>${label}</label><div class="row">
+    <input type="color" data-b="${path}" value="${get(path)}">
+    <div class="swatches">${swatches.map(c=>`<button type="button" data-sw="${path}" data-c="${c}" style="background:${c}" title="${c}"></button>`).join("")}</div>
+  </div></div>`;
+}
+function rng(path,label,min,max,step,suffix=""){
+  return `<div class="field"><label>${label} <span class="mono" data-out="${path}">${get(path)}${suffix}</span></label>
+    <input type="range" data-b="${path}" data-num="1" min="${min}" max="${max}" step="${step}" value="${get(path)}"></div>`;
+}
+function artBlock(prefix,labelPrefix,siAttr=""){
+  const o = get(prefix);
+  const style = o.img?`background-image:url('${o.img}')`:`background-color:${o.color}`;
+  return `<div class="field"><label>${labelPrefix} 이미지</label>
+    <div class="thumb-pick">
+      <span class="thumb-prev" data-prev="${prefix}" style="${style}"></span>
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+        <div class="row">
+          <button type="button" class="file-btn" data-upload="${prefix}">파일 업로드</button>
+          ${o.img?`<button type="button" class="btn danger" data-clearimg="${prefix}">지우기</button>`:""}
+        </div>
+        <input type="text" data-ytin="${prefix}" placeholder="YouTube 링크 붙여넣기" value="${esc(o.yt||"")}">
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input type="color" data-b="${prefix}.color" value="${o.color}">
+      <div class="swatches">${SW_ART.map(c=>`<button type="button" data-sw="${prefix}.color" data-c="${c}" style="background:${c}"></button>`).join("")}</div>
+    </div>
+  </div>`;
+}
+
+function imgPick(prefix,label){
+  const oo = get(prefix);
+  return `<div class="field"><label>${label}</label>
+    <div class="thumb-pick">
+      <span class="thumb-prev" style="${oo.img?`background-image:url('${oo.img}')`:"background-color:var(--panel-2)"}"></span>
+      <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+        <div class="row">
+          <button type="button" class="file-btn" data-upload="${prefix}">파일 업로드</button>
+          ${oo.img?`<button type="button" class="btn danger" data-clearimg="${prefix}">지우기</button>`:""}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function deviceOptions(){
+  return Object.entries(DEVICES).map(([k,d])=>`<option value="${k}" ${state.device===k?"selected":""}>${d.label} · ${d.w}×${d.h}</option>`).join("");
+}
+
+function renderPanel(){
+  const body = document.getElementById("panelBody");
+  /* keep the panel where the user left it: which sections are open, and the scroll position */
+  const openState = [...body.querySelectorAll("details.sec")].map(d=>d.open);
+  const scroll = body.scrollTop;
+  body.innerHTML = `
+  <details class="sec" open><summary><span class="num">01</span>기기 &amp; 목업<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      ${tog("frameOn","애플 목업(기기 프레임) 표시")}
+      <div class="field"><label>기기</label><select data-b="device">${deviceOptions()}</select></div>
+      <div class="field"><label>프레임 색상</label><select data-b="frameColor">${Object.entries(FRAME_COLORS).map(([k,v])=>`<option value="${k}" ${state.frameColor===k?"selected":""}>${v.label}</option>`).join("")}</select></div>
+      ${tog("roundScreen","프레임 없을 때 모서리 둥글게")}
+    </div>
+  </details>
+
+  <details class="sec"><summary><span class="num">02</span>배경 위에 올리기<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      ${tog("canvas.on","배경 위에 올리기")}
+      <div class="field"><label>배경 종류</label>${seg("canvas.mode",[["solid","단색"],["gradient","그라데이션"],["image","이미지"]])}</div>
+      ${state.canvas.mode==="image"
+        ? imgPick("canvas","배경 이미지") + `<div class="field"><label>채우기</label>${seg("canvas.fit",[["cover","꽉 채우기"],["contain","전체 보이기"]])}</div>`
+        : colorRow("canvas.c1", state.canvas.mode==="gradient"?"시작 색":"배경 색", ["#EDE7F4","#FFFFFF","#0E0D12","#1B8A78","#F4D9E0","#DDE8F5","#F6EEDC","#2E2A5E"])
+          + (state.canvas.mode==="gradient" ? colorRow("canvas.c2","끝 색",["#CFC3E4","#FFFFFF","#000000","#0B3D5C","#FBE8C8","#7A1F3D","#30D158","#FF9F0A"]) + rng("canvas.angle","각도",0,360,1,"°") : "")}
+      ${rng("canvas.dim","어둡게",0,70,1,"%")}
+      <div class="divider"></div>
+      ${rng("canvas.pad","여백",0,200,2,"px")}
+      <div class="field"><label>캔버스 비율</label>${seg("canvas.ratio",[["auto","자동"],["1:1","1:1"],["4:5","4:5"],["9:16","9:16"],["16:9","16:9"]])}</div>
+      ${rng("canvas.radius","캔버스 모서리",0,64,1,"px")}
+      ${rng("canvas.shadow","기기 그림자",0,100,1,"")}
+      ${rng("canvas.tilt","기울기",-20,20,1,"°")}
+    </div>
+  </details>
+
+  <details class="sec" open><summary><span class="num">03</span>화면 배경<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      ${seg("bg.mode",[["solid","단색"],["gradient","그라데이션"]])}
+      ${colorRow("bg.c1", state.bg.mode==="gradient"?"시작 색":"배경 색", SW_BG)}
+      ${state.bg.mode==="gradient"?colorRow("bg.c2","끝 색",SW_BG)+rng("bg.angle","각도",0,360,1,"°"):""}
+      <div class="divider"></div>
+      <div class="field"><label>글자 테마</label>${seg("theme",[["auto","자동"],["light","밝게"],["dark","어둡게"]])}</div>
+      <div class="field"><label>강조(틴트) 색</label>${seg("tintMode",[["auto","배경에서 자동"],["custom","직접 지정"]])}</div>
+      ${state.tintMode==="custom"?colorRow("tint","틴트 색",SW_ART):""}
+      <div class="hint">틴트는 곡 아티스트명·별표·탭바 라벨에 적용돼요. 애플뮤직이 앨범 색에서 뽑아 쓰는 그 색이에요.</div>
+    </div>
+  </details>
+
+  <details class="sec"><summary><span class="num">04</span>상태바<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      ${tog("status.show","상태바 표시")}
+      ${txt("status.time","현재 시각","9:41")}
+      ${rng("status.battery","배터리",0,100,1,"%")}
+      ${tog("status.charging","충전 중")}
+      ${tog("status.silent","무음 모드 아이콘")}
+      ${rng("status.signal","신호 세기",0,4,1,"칸")}
+      ${tog("status.wifi","Wi-Fi 아이콘")}
+    </div>
+  </details>
+
+  <details class="sec"><summary><span class="num">05</span>상단 바<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      ${tog("nav.show","상단 바 표시")}
+      ${tog("nav.back","뒤로 가기")}
+      ${tog("nav.person","공동 작업자 추가")}
+      ${tog("nav.share","공유")}
+      ${tog("nav.more","더보기(⋯)")}
+    </div>
+  </details>
+
+  <details class="sec" open><summary><span class="num">06</span>플레이리스트<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      ${txt("pl.title","제목")}
+      ${txt("pl.artist","만든 사람 / 설명")}
+      ${artBlock("pl","앨범 커버")}
+      ${rng("pl.size","커버 크기",40,92,1,"%")}
+      ${rng("pl.radius","커버 모서리",0,40,1,"px")}
+      <div class="divider"></div>
+      ${tog("act.show","재생 버튼 줄 표시")}
+      ${txt("act.label","버튼 문구","재생")}
+      ${tog("act.shuffle","셔플 버튼")}
+      ${tog("act.download","다운로드 버튼")}
+      <div class="field"><label>재생 버튼 색</label>${seg("act.pillMode",[["auto","배경에 맞춤"],["custom","직접 지정"]])}</div>
+      ${state.act.pillMode==="custom"?colorRow("act.pillBg","버튼 색",["#FFFFFF","#000000","#FA243C","#F2F2F7","#1C1C1E"]):""}
+    </div>
+  </details>
+
+  <details class="sec" open><summary><span class="num">07</span>곡 목록<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      ${tog("list.stars","즐겨찾기 별표 열 표시")}
+      ${tog("list.art","곡 앨범 이미지 표시")}
+      ${tog("list.more","곡별 ⋯ 버튼")}
+      <div class="divider"></div>
+      <div class="songs" id="songs"></div>
+      <button type="button" class="btn full" id="addSong">＋ 곡 추가</button>
+    </div>
+  </details>
+
+  <details class="sec"><summary><span class="num">08</span>미니 플레이어<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      ${tog("mini.show","미니 플레이어 표시")}
+      ${txt("mini.title","곡 제목")}
+      ${txt("mini.artist","아티스트")}
+      ${artBlock("mini","앨범")}
+      ${tog("mini.playing","일시정지 아이콘으로")}
+      <div class="field"><label>목록에서 가져오기</label>
+        <select id="miniFrom"><option value="">— 선택 —</option>${state.tracks.map((t,i)=>`<option value="${i}">${esc(t.title||"제목 없음")}</option>`).join("")}</select>
+      </div>
+    </div>
+  </details>
+
+  <details class="sec"><summary><span class="num">09</span>탭 바<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      ${tog("tab.show","탭 바 표시")}
+      ${tog("tab.search","검색 버튼(원형)")}
+      <div class="field"><label>선택된 탭</label>${seg("tab.active",[["home","홈"],["new","새로운"],["radio","라디오"],["library","보관함"]])}</div>
+      ${colorRow("tab.accent","선택 탭 색",["#FA243C","#FF375F","#0A84FF","#30D158","#FF9F0A","#000000","#FFFFFF"])}
+      <div class="divider"></div>
+      ${tog("homeInd","홈 인디케이터")}
+    </div>
+  </details>
+
+  <details class="sec"><summary><span class="num">10</span>저장 &amp; 내보내기<span class="chev">${chev()}</span></summary>
+    <div class="sec-body">
+      <button type="button" class="btn full primary" id="exportBtn2">PNG로 저장 (3배율)</button>
+      <button type="button" class="btn full" id="saveJson">설정 파일로 저장 (.json)</button>
+      <button type="button" class="btn full" id="loadJson">설정 파일 불러오기</button>
+      <button type="button" class="btn full" id="resetAll">기본값으로 초기화</button>
+      <div class="hint">PNG는 화면에 보이는 그대로(배경·스크롤 위치 포함) 저장돼요. 설정은 브라우저에 남지 않으니, 이어서 만들 거면 .json으로 내려받아 두세요.</div>
+    </div>
+  </details>`;
+  if(openState.length){
+    body.querySelectorAll("details.sec").forEach((d,i)=>{ if(openState[i]!==undefined) d.open = openState[i]; });
+    body.scrollTop = scroll;
+  }
+  renderSongs();
+}
+function chev(){return `<svg width="12" height="12" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5 10 7l-5 4.5"/></svg>`;}
+
+function renderSongs(){
+  const wrap = document.getElementById("songs");
+  if(!wrap) return;
+  wrap.innerHTML = state.tracks.map((t,i)=>{
+    const style = t.img?`background-image:url('${t.img}')`:`background-color:${t.color}`;
+    return `<div class="song-card" data-si="${i}">
+      <div class="head">
+        <span class="idx">${String(i+1).padStart(2,"0")}</span>
+        <span class="grow"></span>
+        <button type="button" class="icon-btn" data-star="${i}" title="즐겨찾기" style="${t.star?"color:#FA243C":""}">${I.star("currentColor").replace('viewBox','width="13" height="13" viewBox')}</button>
+        <button type="button" class="icon-btn" data-mv="${i}" data-dir="-1" ${i===0?"disabled":""} title="위로">${I.up("currentColor")}</button>
+        <button type="button" class="icon-btn" data-mv="${i}" data-dir="1" ${i===state.tracks.length-1?"disabled":""} title="아래로">${I.down("currentColor")}</button>
+        <button type="button" class="icon-btn" data-del="${i}" title="삭제">${I.trash("currentColor")}</button>
+      </div>
+      <input type="text" data-si="${i}" data-tb="title" value="${esc(t.title)}" placeholder="곡 제목">
+      <input type="text" data-si="${i}" data-tb="artist" value="${esc(t.artist)}" placeholder="아티스트">
+      <div class="thumb-pick">
+        <span class="thumb-prev" style="${style}"></span>
+        <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+          <div class="row">
+            <button type="button" class="file-btn" data-upload="track:${i}">파일 업로드</button>
+            ${t.img?`<button type="button" class="btn danger" data-clearimg="track:${i}">지우기</button>`:""}
+            <input type="color" data-si="${i}" data-tb="color" value="${t.color}">
+          </div>
+          <input type="text" data-ytin="track:${i}" placeholder="YouTube 링크" value="${esc(t.yt||"")}">
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ============================================================
+   7. IMAGE SOURCES  (upload / YouTube thumbnail)
+   ============================================================ */
+function targetObj(t){
+  if(t.startsWith("track:")) return state.tracks[+t.split(":")[1]];
+  return get(t);
+}
+function pickFile(cb){
+  const inp = document.createElement("input");
+  inp.type="file"; inp.accept="image/*";
+  inp.addEventListener("change",()=>{
+    const f = inp.files && inp.files[0];
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = ()=>cb(r.result);
+    r.readAsDataURL(f);
+  });
+  inp.click();
+}
+function ytId(url){
+  const m = String(url).match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/|live\/|v\/))([A-Za-z0-9_-]{11})/);
+  if(m) return m[1];
+  const bare = String(url).trim();
+  return /^[A-Za-z0-9_-]{11}$/.test(bare) ? bare : null;
+}
+function loadImg(src){
+  return new Promise(res=>{ const im=new Image(); im.crossOrigin="anonymous";
+    im.onload=()=>res(im); im.onerror=()=>res(null); im.src=src; });
+}
+/* Re-encode the thumbnail locally so PNG export never hits a tainted canvas. */
+async function ytThumb(id){
+  for(const name of ["maxresdefault","hqdefault","mqdefault"]){
+    const url = `https://i.ytimg.com/vi/${id}/${name}.jpg`;
+    const im = await loadImg(url);
+    if(im && im.naturalWidth > 8){
+      try{
+        const side = Math.min(im.naturalWidth, im.naturalHeight);
+        const cv = document.createElement("canvas");
+        cv.width = cv.height = Math.min(640, side);
+        const cx = cv.getContext("2d");
+        cx.drawImage(im,(im.naturalWidth-side)/2,(im.naturalHeight-side)/2,side,side,0,0,cv.width,cv.height);
+        return cv.toDataURL("image/jpeg",0.92);
+      }catch(e){ return url; }   /* tainted: fall back to the live URL */
+    }
+  }
+  return null;
+}
+let ytTimer = null;
+function handleYt(target, value, previewEl){
+  const o = targetObj(target);
+  o.yt = value;
+  clearTimeout(ytTimer);
+  const id = ytId(value);
+  if(!value.trim()){ o.img = null; refreshPreview(previewEl,o); renderScreen(); return; }
+  if(!id) return;
+  ytTimer = setTimeout(async ()=>{
+    const src = await ytThumb(id);
+    if(src){ o.img = src; refreshPreview(previewEl,o); renderScreen(); }
+  }, 320);
+}
+function refreshPreview(el,o){
+  if(!el) return;
+  el.style.backgroundImage = o.img ? `url('${o.img}')` : "none";
+  el.style.backgroundColor = o.color;
+}
+
+/* ============================================================
+   8. EVENT WIRING
+   ============================================================ */
+const REPANEL = new Set(["bg.mode","tintMode","act.pillMode","canvas.mode"]);
+const panelBody = document.getElementById("panelBody");
+
+function readControl(el){
+  const p = el.dataset.b;
+  if(!p) return;
+  let v;
+  if(el.type === "checkbox") v = el.checked;
+  else if(el.dataset.num) v = Number(el.value);
+  else v = el.value;
+  set(p, v);
+  const out = panelBody.querySelector(`[data-out="${p}"]`);
+  if(out){
+    const suffix = out.textContent.replace(/^[\d.-]+/,"");
+    out.textContent = v + suffix;
+  }
+  if(/\.color$/.test(p)){
+    const field = el.closest(".field");
+    const prev = field && field.querySelector(".thumb-prev");
+    if(prev) refreshPreview(prev, targetObj(p.replace(/\.color$/,"")));
+  }
+  renderScreen();
+  if(REPANEL.has(p)) renderPanel();
+}
+
+panelBody.addEventListener("input", e=>{
+  const el = e.target;
+  if(el.dataset.b) { readControl(el); return; }
+  if(el.dataset.tb !== undefined && el.dataset.si !== undefined){
+    const t = state.tracks[+el.dataset.si];
+    t[el.dataset.tb] = el.value;
+    if(el.dataset.tb === "color"){
+      const prev = el.closest(".song-card").querySelector(".thumb-prev");
+      refreshPreview(prev, t);
+    }
+    renderScreen(); return;
+  }
+  if(el.dataset.ytin !== undefined){
+    const prev = el.closest(".thumb-pick").querySelector(".thumb-prev");
+    handleYt(el.dataset.ytin, el.value, prev); return;
+  }
+});
+panelBody.addEventListener("change", e=>{ if(e.target.dataset.b) readControl(e.target); });
+
+panelBody.addEventListener("click", e=>{
+  const el = e.target.closest("button");
+  if(!el) return;
+
+  /* segmented */
+  const segWrap = el.closest(".segmented");
+  if(segWrap && el.dataset.v !== undefined){
+    set(segWrap.dataset.b, el.dataset.v);
+    segWrap.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed", b===el));
+    renderScreen();
+    if(REPANEL.has(segWrap.dataset.b)) renderPanel();
+    return;
+  }
+  /* swatch */
+  if(el.dataset.sw){
+    set(el.dataset.sw, el.dataset.c);
+    const inp = panelBody.querySelector(`input[type=color][data-b="${el.dataset.sw}"]`);
+    if(inp) inp.value = el.dataset.c;
+    const card = el.closest(".song-card") || el.closest(".field");
+    const prev = card && card.querySelector(".thumb-prev");
+    if(prev){
+      const base = el.dataset.sw.replace(/\.color$/,"");
+      refreshPreview(prev, targetObj(base));
+    }
+    renderScreen(); return;
+  }
+  /* image upload / clear */
+  if(el.dataset.upload){
+    const t = el.dataset.upload;
+    pickFile(src=>{ const o=targetObj(t); o.img=src; o.yt=""; renderScreen(); renderPanel(); });
+    return;
+  }
+  if(el.dataset.clearimg){
+    const o = targetObj(el.dataset.clearimg); o.img=null; o.yt="";
+    renderScreen(); renderPanel(); return;
+  }
+  /* track actions */
+  if(el.dataset.star !== undefined){
+    const t = state.tracks[+el.dataset.star]; t.star = !t.star;
+    renderScreen(); renderSongs(); return;
+  }
+  if(el.dataset.mv !== undefined){
+    const i = +el.dataset.mv, d = +el.dataset.dir, j = i + d;
+    if(j<0 || j>=state.tracks.length) return;
+    [state.tracks[i], state.tracks[j]] = [state.tracks[j], state.tracks[i]];
+    renderScreen(); renderPanel(); return;
+  }
+  if(el.dataset.del !== undefined){
+    state.tracks.splice(+el.dataset.del,1);
+    renderScreen(); renderPanel(); return;
+  }
+  if(el.id === "addSong"){
+    state.tracks.push(newTrack("새로운 곡","아티스트"));
+    renderScreen(); renderPanel();
+    panelBody.querySelector(".song-card:last-child input[data-tb=title]").focus();
+    return;
+  }
+  if(el.id === "exportBtn2"){ exportPng(); return; }
+  if(el.id === "saveJson"){ saveJson(); return; }
+  if(el.id === "loadJson"){ loadJson(); return; }
+  if(el.id === "resetAll"){
+    if(confirm("모든 설정을 기본값으로 되돌릴까요?")){
+      Object.keys(DEFAULTS).forEach(k=>{ state[k] = structuredClone(DEFAULTS[k]); });
+      renderScreen(); renderPanel();
+    }
+    return;
+  }
+});
+
+panelBody.addEventListener("change", e=>{
+  if(e.target.id === "miniFrom" && e.target.value !== ""){
+    const t = state.tracks[+e.target.value];
+    Object.assign(state.mini,{title:t.title,artist:t.artist,color:t.color,img:t.img});
+    renderScreen(); renderPanel();
+  }
+});
+
+/* ============================================================
+   9. ZOOM
+   ============================================================ */
+let zoom = 1, autoFit = true;
+const stageEl = document.querySelector(".stage");
+const zoomVal = document.getElementById("zoomVal");
+function applyZoom(){
+  viewport.style.transform = `scale(${zoom})`;
+  zoomVal.textContent = Math.round(zoom*100) + "%";
+}
+function fitIfAuto(){
+  if(!autoFit) return;
+  const f = viewport.firstElementChild;
+  if(!f) return;
+  const w = f.offsetWidth, h = f.offsetHeight;
+  if(!w || !h) return;
+  const full = document.body.classList.contains("fullview");
+  const availW = stageEl.clientWidth - (full ? 60 : 80);
+  const availH = stageEl.clientHeight - (full ? 120 : 190);
+  zoom = Math.min(1.1, availW/w, availH/h);
+  applyZoom();
+}
+document.getElementById("zoomIn").onclick = ()=>{ autoFit=false; zoom=Math.min(2,zoom+0.1); applyZoom(); };
+document.getElementById("zoomOut").onclick = ()=>{ autoFit=false; zoom=Math.max(0.15,zoom-0.1); applyZoom(); };
+document.getElementById("zoomFit").onclick = ()=>{ autoFit=true; zoom=1; fitIfAuto(); };
+window.addEventListener("resize", ()=>fitIfAuto());
+
+/* full view */
+const fullBtn = document.getElementById("fullBtn");
+function setFull(on){
+  document.body.classList.toggle("fullview", on);
+  fullBtn.textContent = on ? "나가기" : "전체보기";
+  autoFit = true; requestAnimationFrame(fitIfAuto);
+}
+fullBtn.onclick = ()=> setFull(!document.body.classList.contains("fullview"));
+window.addEventListener("keydown", e=>{
+  if(e.key === "Escape" && document.body.classList.contains("fullview")) setFull(false);
+});
+
+/* editor theme */
+document.getElementById("themeBtn").onclick = ()=>{
+  const r = document.documentElement;
+  const cur = r.getAttribute("data-theme");
+  const sysDark = matchMedia("(prefers-color-scheme: dark)").matches;
+  r.setAttribute("data-theme", cur ? (cur==="dark"?"light":"dark") : (sysDark?"light":"dark"));
+};
+
+/* ============================================================
+   10. EXPORT
+   ============================================================ */
+function download(blobOrUrl, name){
+  const a = document.createElement("a");
+  a.href = typeof blobOrUrl === "string" ? blobOrUrl : URL.createObjectURL(blobOrUrl);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+const exportBtn = document.getElementById("exportBtn");
+async function exportPng(){
+  const node = state.canvas.on ? viewport.querySelector("#canvasEl") : viewport.querySelector(".frame");
+  if(!node) return;
+  if(typeof html2canvas === "undefined"){
+    alert("이미지 저장 라이브러리를 불러오지 못했어요. 인터넷에 연결한 뒤 새로고침하거나, 화면을 직접 캡처해 주세요.");
+    return;
+  }
+  const prevT = viewport.style.transform;
+  const label = exportBtn.textContent;
+  exportBtn.textContent = "굽는 중…"; exportBtn.disabled = true;
+  viewport.style.transform = "none";
+  document.body.classList.add("exporting");
+  try{
+    /* carry the current list scroll into the capture, so what you see is what you save */
+    const scrolled = node.querySelector(".content");
+    const st = scrolled ? scrolled.scrollTop : 0;
+    const canvas = await html2canvas(node, {
+      scale: 3, backgroundColor: null, useCORS: true, logging: false,
+      width: node.offsetWidth, height: node.offsetHeight,
+      onclone: doc => {
+        const c = doc.querySelector(".content"); if(c) c.scrollTop = st;
+        doc.body.classList.add("exporting");
+      }
+    });
+    canvas.toBlob(b=>{
+      const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,"");
+      download(b, `apple-music-${stamp}.png`);
+    }, "image/png");
+  }catch(err){
+    alert("이미지로 굽는 데 실패했어요. 유튜브 썸네일을 쓰는 중이라면 이미지 파일로 직접 올려 보세요.");
+    console.error(err);
+  }finally{
+    document.body.classList.remove("exporting");
+    viewport.style.transform = prevT;
+    exportBtn.textContent = label; exportBtn.disabled = false;
+  }
+}
+exportBtn.onclick = exportPng;
+
+function saveJson(){
+  const blob = new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
+  download(blob, "apple-music-maker.json");
+}
+function loadJson(){
+  const inp = document.createElement("input");
+  inp.type="file"; inp.accept="application/json,.json";
+  inp.addEventListener("change",()=>{
+    const f=inp.files&&inp.files[0]; if(!f) return;
+    const r=new FileReader();
+    r.onload=()=>{
+      try{
+        const data = JSON.parse(r.result);
+        Object.keys(data).forEach(k=>{ state[k] = data[k]; });
+        renderScreen(); renderPanel();
+      }catch(e){ alert("설정 파일을 읽지 못했어요. 이 도구에서 저장한 .json인지 확인해 주세요."); }
+    };
+    r.readAsText(f);
+  });
+  inp.click();
+}
+
+/* ============================================================
+   11. BOOT
+   ============================================================ */
+const DEFAULTS = structuredClone(state);
+renderScreen();
+renderPanel();
+requestAnimationFrame(()=>fitIfAuto());
+</script>
+
+</body>
+</html>
