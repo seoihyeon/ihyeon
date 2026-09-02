@@ -1684,6 +1684,42 @@ async function probeShadowBlur(){
   }catch(e){ shadowBlurOk = false; }
   return shadowBlurOk;
 }
+/* Give one element a soft shadow made of nested rounded divs, sitting just behind it.
+   Returns the nodes/style changes so the export can undo them afterwards. */
+function attachFauxShadow(el, y, blur, alpha, n = 8, addTo, undo){
+  const parent = el.parentElement;
+  if(!parent) return;
+  const pcs = getComputedStyle(parent);
+  if(pcs.position === "static"){
+    undo.push([parent, "position", parent.style.position]);
+    parent.style.position = "relative";
+  }
+  const cs = getComputedStyle(el);
+  const w = el.offsetWidth, h = el.offsetHeight;
+  const radius = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, Math.min(w, h)/2);
+  const pr = parent.getBoundingClientRect(), er = el.getBoundingClientRect();
+
+  undo.push([el, "position", el.style.position], [el, "zIndex", el.style.zIndex]);
+  if(cs.position === "static") el.style.position = "relative";
+  el.style.zIndex = "1";
+
+  const wrap = document.createElement("div");
+  wrap.style.cssText =
+    `position:absolute;left:${er.left-pr.left}px;top:${er.top-pr.top}px;` +
+    `width:${w}px;height:${h}px;z-index:0;pointer-events:none;`;
+  const reach = blur * 0.55;
+  for(let i = n; i >= 1; i--){
+    const f = i/n, e = reach*f, oy = y*f;
+    const ring = document.createElement("div");
+    ring.style.cssText =
+      `position:absolute;left:${-e}px;right:${-e}px;top:${-e+oy}px;bottom:${-e-oy}px;` +
+      `border-radius:${radius + e}px;background:rgba(0,0,0,${(alpha/n).toFixed(4)});`;
+    wrap.appendChild(ring);
+  }
+  parent.insertBefore(wrap, el);
+  addTo.push(wrap);
+}
+
 /* a soft drop shadow built from nested rounded divs — every engine draws these right */
 function buildFauxShadow(frame, radius, y, blur, alpha, n = 10){
   const wrap = document.createElement("div");
@@ -1733,16 +1769,24 @@ async function exportPng(){
     const line = P.glassLine;
     /* the same engines drop backdrop-filter here too, so firm the bars up a little
        to stand in for the blur that won't be drawn */
-    const firm = P.light ? "rgba(0,0,0,.54)" : "rgba(255,255,255,.92)";
+    const firm = P.light ? "rgba(0,0,0,.48)" : "rgba(255,255,255,.88)";
+    const barY = 6, barBlur = P.light ? 24 : 22, barA = P.light ? .24 : .13;
     node.querySelectorAll(".mini,.tabbar,.tab-search").forEach(el=>{
       restore.push([el, "boxShadow", el.style.boxShadow]);
       restore.push([el, "background", el.style.background]);
       el.style.boxShadow = `inset 0 0 0 .5px ${line}`;
       el.style.background = firm;
+      attachFauxShadow(el, barY, barBlur, barA, 8, added, restore);
     });
-    node.querySelectorAll(".play-pill,.cover").forEach(el=>{
+    node.querySelectorAll(".play-pill").forEach(el=>{
       restore.push([el, "boxShadow", el.style.boxShadow]);
       el.style.boxShadow = "none";
+      attachFauxShadow(el, barY, barBlur, barA, 8, added, restore);
+    });
+    node.querySelectorAll(".cover").forEach(el=>{
+      restore.push([el, "boxShadow", el.style.boxShadow]);
+      el.style.boxShadow = "none";
+      attachFauxShadow(el, 10, 26, .26, 8, added, restore);
     });
     const frame = node.classList.contains("frame") ? node : node.querySelector(".frame");
     if(frame){
@@ -1777,6 +1821,8 @@ async function exportPng(){
     restore.forEach(([el, prop, val]) => {
       if(prop === "boxShadow") el.style.boxShadow = val;
       else if(prop === "background") el.style.background = val;
+      else if(prop === "position") el.style.position = val;
+      else if(prop === "zIndex") el.style.zIndex = val;
       else el.style.setProperty(prop, val);
     });
     if(st){ kids.forEach(k=>{ k.style.transform = ""; }); sc.scrollTop = st; }
