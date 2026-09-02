@@ -493,7 +493,7 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
   width:46px;height:46px;border-radius:4px;flex:none;
   background:#D1D1D6 center/cover no-repeat;
   display:grid;place-items:center;overflow:hidden;
-  box-shadow:0 0 0 .5px rgba(0,0,0,.10);
+  border:.5px solid rgba(0,0,0,.10);
 }
 .tk-art .ph{width:44%;height:44%;opacity:.42}
 .tk-meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
@@ -553,7 +553,6 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
 }
 .pad-b{flex:none}
 
-.glass{backdrop-filter:blur(18px) saturate(1.5);-webkit-backdrop-filter:blur(18px) saturate(1.5)}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{transition-duration:.01ms !important;animation-duration:.01ms !important}
@@ -991,7 +990,7 @@ function renderScreen(){
   let miniHtml = "";
   if(state.mini.show){
     miniHtml = `
-      <div class="mini glass" style="background:${P.barBg};border:.5px solid ${P.barLine};${state.shadows?`box-shadow:${P.barShadow}`:""}">
+      <div class="mini" style="background:${P.barBg};border:.5px solid ${P.barLine};${state.shadows?`box-shadow:${P.barShadow}`:""}">
         <span class="mini-art" style="${artStyle(state.mini)}">${artInner(state.mini,P)}</span>
         <span class="mini-meta">
           <span class="mini-title" data-txt="mini.title" style="color:${P.ink}">${esc(state.mini.title)}</span>
@@ -1022,8 +1021,8 @@ function renderScreen(){
     }).join("");
     tabHtml = `
       <div class="tabrow">
-        <div class="tabbar glass" style="background:${P.barBg};border:.5px solid ${P.barLine};${state.shadows?`box-shadow:${P.barShadow}`:""}">${items}</div>
-        ${state.tab.search?`<div class="tab-search glass" style="background:${P.barBg};border:.5px solid ${P.barLine};${state.shadows?`box-shadow:${P.barShadow}`:""}">${I.search(P.tint)}</div>`:""}
+        <div class="tabbar" style="background:${P.barBg};border:.5px solid ${P.barLine};${state.shadows?`box-shadow:${P.barShadow}`:""}">${items}</div>
+        ${state.tab.search?`<div class="tab-search" style="background:${P.barBg};border:.5px solid ${P.barLine};${state.shadows?`box-shadow:${P.barShadow}`:""}">${I.search(P.tint)}</div>`:""}
       </div>`;
   }
 
@@ -1769,16 +1768,6 @@ async function exportPng(){
   const flat = state.exportFlat === "on" ? true
              : state.exportFlat === "off" ? false
              : !(await probeShadowBlur());
-  if(flat){
-    const P = palette();
-    /* these engines drop backdrop-filter in the capture too, so firm the bars up
-       a little to stand in for the blur that won't be drawn */
-    const firm = P.light ? "rgba(0,0,0,.48)" : "rgba(255,255,255,.88)";
-    node.querySelectorAll(".mini,.tabbar,.tab-search").forEach(el=>{
-      restore.push([el, "background", el.style.background]);
-      el.style.background = firm;
-    });
-  }
   if(flat && state.shadows){
     const P = palette();
     const barY = 6, barBlur = P.light ? 24 : 22, barA = P.light ? .24 : .13;
