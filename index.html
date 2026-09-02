@@ -67,6 +67,7 @@
 html,body{margin:0;padding:0}
 body{
   background:var(--ground);
+  -webkit-text-size-adjust:100%;
   color:var(--ink);
   font-family:"IBM Plex Sans KR","Apple SD Gothic Neo",system-ui,-apple-system,sans-serif;
   font-size:14px;
@@ -85,6 +86,15 @@ button,input,select,textarea{font:inherit;color:inherit}
 }
 @media (max-width:1080px){
   .app{grid-template-columns:1fr;height:auto;overflow:visible}
+  /* on a phone nothing may force the page wider than the screen — a single
+     over-wide control makes the browser widen the whole layout and everything
+     opens looking zoomed in */
+  .segmented{flex-wrap:wrap}
+  .segmented button{flex:1 1 28%;font-size:11.5px;padding:7px 3px}
+  .row{flex-wrap:wrap}
+  .sec-body{padding-left:14px;padding-right:14px}
+  details.sec > summary{padding-left:14px;padding-right:14px}
+  .panel-head{padding-left:14px;padding-right:14px}
 }
 body.fullview .app{grid-template-columns:1fr}
 body.fullview .panel{display:none}
@@ -158,11 +168,13 @@ body.fullview .stage{padding:36px 36px 92px}
 }
 
 #viewport{
-  transform-origin:center center;
+  transform-origin:top left;
   transition:transform .18s ease;
+  flex:none;
 }
 
 /* ---------- panel ---------- */
+.panel,.panel-body,.sec-body,.field,.row,.song-card,.thumb-pick,.thumb-pick > div{min-width:0}
 .panel{
   background:var(--panel);
   border-left:1px solid var(--line);
@@ -213,7 +225,7 @@ details.sec > summary .num{
   letter-spacing:.01em;
 }
 input[type=text],input[type=number],select,textarea{
-  width:100%;
+  width:100%;max-width:100%;min-width:0;
   background:var(--panel-2);
   border:1px solid var(--line);
   border-radius:9px;
@@ -259,7 +271,7 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
   border-radius:9px;padding:2px;gap:2px;
 }
 .segmented button{
-  flex:1;border:0;background:transparent;cursor:pointer;
+  flex:1 1 0;min-width:0;border:0;background:transparent;cursor:pointer;
   padding:6px 4px;border-radius:7px;font-size:12px;font-weight:500;
   color:var(--muted);transition:.15s;white-space:nowrap;
 }
@@ -886,6 +898,7 @@ function applyGeom(el){
   }
   const box = cw + "x" + ch;
   if(box !== lastBox){ lastBox = box; fitIfAuto(); }
+  applyZoom();
 }
 
 /* backdrop-only changes: never touches the phone subtree */
@@ -1568,6 +1581,13 @@ const stageEl = document.querySelector(".stage");
 const zoomVal = document.getElementById("zoomVal");
 function applyZoom(){
   viewport.style.transform = `scale(${zoom})`;
+  /* a transform doesn't shrink the layout box, so the shrunken mockup would still
+     reserve its full width and push the page wider than a phone screen */
+  const el = viewport.firstElementChild;
+  if(el){
+    viewport.style.width  = Math.round(el.offsetWidth  * zoom) + "px";
+    viewport.style.height = Math.round(el.offsetHeight * zoom) + "px";
+  }
   zoomVal.textContent = Math.round(zoom*100) + "%";
 }
 function fitIfAuto(){
@@ -1577,9 +1597,14 @@ function fitIfAuto(){
   const w = f.offsetWidth, h = f.offsetHeight;
   if(!w || !h) return;
   const full = document.body.classList.contains("fullview");
-  const availW = stageEl.clientWidth - (full ? 60 : 80);
-  const availH = stageEl.clientHeight - (full ? 120 : 190);
-  zoom = Math.min(1.1, availW/w, availH/h);
+  /* On a phone the panel stacks underneath, so the stage grows with its content and
+     its own height can't be used to fit against — measure the window instead. */
+  const narrow = window.matchMedia("(max-width:1080px)").matches;
+  const availW = stageEl.clientWidth - (narrow ? 28 : full ? 60 : 80);
+  const vv = window.visualViewport;
+  const availH = narrow ? (vv ? vv.height : window.innerHeight) * 0.70
+                        : stageEl.clientHeight - (full ? 120 : 190);
+  zoom = Math.min(1, availW/w, availH/h);   /* never blow the mockup up past 100 % */
   applyZoom();
 }
 document.getElementById("zoomIn").onclick = ()=>{ autoFit=false; zoom=Math.min(2,zoom+0.1); applyZoom(); };
@@ -1617,13 +1642,51 @@ function download(blobOrUrl, name){
   document.body.appendChild(a); a.click(); a.remove();
 }
 const exportBtn = document.getElementById("exportBtn");
+/* ── WebKit (Safari / every iOS browser) drops the blur when it rasterises a
+   box-shadow inside the SVG the capture uses, painting a hard rectangle instead.
+   Probe once for it, then approximate blurred shadows with a stack of zero-blur
+   rings, which every engine draws identically. ───────────────────────────── */
+let shadowBlurOk = null;
+async function probeShadowBlur(){
+  if(shadowBlurOk !== null) return shadowBlurOk;
+  try{
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">' +
+      '<foreignObject x="0" y="0" width="60" height="60">' +
+      '<div xmlns="http://www.w3.org/1999/xhtml" style="width:60px;height:60px;background:#fff">' +
+      '<div style="width:20px;height:20px;margin:20px;background:#fff;box-shadow:0 0 12px 0 #000"></div>' +
+      '</div></foreignObject></svg>';
+    const img = await loadImg("data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg));
+    if(!img){ shadowBlurOk = false; return shadowBlurOk; }
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = 60;
+    const cx = cv.getContext("2d");
+    cx.fillStyle = "#fff"; cx.fillRect(0,0,60,60);
+    cx.drawImage(img,0,0);
+    /* 5 px outside the inner box: grey means the blur was drawn, white means it was not */
+    shadowBlurOk = cx.getImageData(15,30,1,1).data[0] < 235;
+  }catch(e){ shadowBlurOk = false; }
+  return shadowBlurOk;
+}
+/* a blurred drop shadow, rebuilt as concentric hard-edged rings */
+function stackShadow(y, blur, alpha, n = 16){
+  /* a Gaussian of radius `blur` reaches roughly blur/2 past the edge; spread the rings
+     over that distance and give each 1/n of the opacity so they sum to `alpha` at the edge */
+  const out = [];
+  for(let i = 1; i <= n; i++){
+    const f = i/n;
+    out.push(`0 ${(y*f).toFixed(1)}px 0 ${(blur*0.5*f).toFixed(1)}px rgba(0,0,0,${(alpha/n).toFixed(4)})`);
+  }
+  return out.reverse().join(",");
+}
+
 async function exportPng(){
   const node = state.canvas.on ? viewport.querySelector("#canvasEl") : viewport.querySelector(".frame");
   if(!node) return;
-  const prevT = viewport.style.transform;
+  const prevT = viewport.style.transform, prevW = viewport.style.width, prevH = viewport.style.height;
   const label = exportBtn.textContent;
   exportBtn.textContent = "굽는 중…"; exportBtn.disabled = true;
-  viewport.style.transform = "none";
+  viewport.style.transform = "none"; viewport.style.width = ""; viewport.style.height = "";
 
   /* The capture re-renders a clone, which starts unscrolled — fold the list's scroll
      into a transform so what you see is what you save. */
@@ -1631,6 +1694,39 @@ async function exportPng(){
   const st = sc ? sc.scrollTop : 0;
   const kids = sc ? Array.from(sc.children) : [];
   if(st){ kids.forEach(k=>{ k.style.transform = `translateY(${-st}px)`; }); sc.scrollTop = 0; }
+
+  /* swap in engine-safe shadows where the capture would otherwise mangle them */
+  const restore = [];
+  if(!(await probeShadowBlur())){
+    const P = palette();
+    const barA = P.light ? .24 : .13;
+    const bar  = stackShadow(6, P.light ? 24 : 22, barA);
+    const line = P.glassLine;
+    /* the same engines drop backdrop-filter here too, so firm the bars up a little
+       to stand in for the blur that won't be drawn */
+    const firm = P.light ? "rgba(0,0,0,.52)" : "rgba(255,255,255,.90)";
+    node.querySelectorAll(".mini,.tabbar,.tab-search").forEach(el=>{
+      restore.push([el, "boxShadow", el.style.boxShadow]);
+      restore.push([el, "background", el.style.background]);
+      el.style.boxShadow = `${bar},inset 0 0 0 .5px ${line}`;
+      el.style.background = firm;
+    });
+    node.querySelectorAll(".play-pill").forEach(el=>{
+      restore.push([el, "boxShadow", el.style.boxShadow]);
+      el.style.boxShadow = bar;
+    });
+    node.querySelectorAll(".cover").forEach(el=>{
+      restore.push([el, "boxShadow", el.style.boxShadow]);
+      el.style.boxShadow = stackShadow(10, 26, .26);
+    });
+    const sh = state.canvas.shadow;
+    const frame = node.classList.contains("frame") ? node : node.querySelector(".frame");
+    if(frame){
+      restore.push([frame, "--dev-shadow", frame.style.getPropertyValue("--dev-shadow")]);
+      frame.style.setProperty("--dev-shadow",
+        sh <= 0 ? "none" : stackShadow(10 + sh*0.42, 24 + sh*0.85, 0.06 + sh*0.0035));
+    }
+  }
 
   try{
     const blob = await htmlToImage.toBlob(node, {
@@ -1647,8 +1743,13 @@ async function exportPng(){
     alert("이미지로 굽는 데 실패했어요. 유튜브 썸네일을 쓰는 중이라면 이미지 파일로 직접 올려 보세요.");
     console.error(err);
   }finally{
+    restore.forEach(([el, prop, val]) => {
+      if(prop === "boxShadow") el.style.boxShadow = val;
+      else if(prop === "background") el.style.background = val;
+      else el.style.setProperty(prop, val);
+    });
     if(st){ kids.forEach(k=>{ k.style.transform = ""; }); sc.scrollTop = st; }
-    viewport.style.transform = prevT;
+    viewport.style.transform = prevT; viewport.style.width = prevW; viewport.style.height = prevH;
     exportBtn.textContent = label; exportBtn.disabled = false;
   }
 }
