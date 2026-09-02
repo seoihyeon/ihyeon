@@ -685,7 +685,7 @@ let SID = 0;
 const newTrack = (t="",a="")=>({id:++SID,title:t,artist:a,star:false,color:"#D1D1D6",img:null,yt:""});
 
 const state = {
-  device:"16pro", frameOn:true, frameColor:"black", roundScreen:true,
+  device:"16pro", frameOn:true, frameColor:"black", roundScreen:false,
   bg:{mode:"solid", c1:"#FFFFFF", c2:"#E8E8ED", angle:180},
   theme:"auto",
   tintMode:"auto", tint:"#5FBFA9",
@@ -775,6 +775,10 @@ function artStyle(o){
 }
 function artInner(o,P){ return o.img ? "" : `<span class="ph">${I.note(P.light?"rgba(255,255,255,.62)":"rgba(0,0,0,.30)")}</span>`; }
 
+function outerRadius(){
+  const d = DEVICES[state.device];
+  return state.frameOn ? d.sr : (state.roundScreen ? d.sr : 0);
+}
 function screenMetrics(){
   const d = DEVICES[state.device];
   const isClassic = d.top === "classic";
@@ -1033,7 +1037,7 @@ function renderScreen(){
     else if(d.top==="island") hw = `<div class="island"></div>`;
   }
 
-  const screenRadius = state.frameOn ? d.sr : (state.roundScreen ? d.sr : 0);
+  const screenRadius = outerRadius();
 
   const screenHtml = `
     <div class="screen" id="screenEl" style="width:${d.w}px;height:${d.h}px;border-radius:${screenRadius}px;background:${bgCss()}">
@@ -1186,6 +1190,7 @@ function renderPanel(){
       <div class="field"><label>기기</label><select data-b="device">${deviceOptions()}</select></div>
       <div class="field"><label>프레임 색상</label><select data-b="frameColor">${Object.entries(FRAME_COLORS).map(([k,v])=>`<option value="${k}" ${state.frameColor===k?"selected":""}>${v.label}</option>`).join("")}</select></div>
       ${tog("roundScreen","프레임 없을 때 모서리 둥글게")}
+      <div class="hint">끄면 실제 아이폰 스크린샷처럼 네모나게 나와요.</div>
     </div>
   </details>
 
@@ -1745,8 +1750,7 @@ async function exportPng(){
       frame.style.setProperty("--dev-shadow", "none");
       const sh = state.canvas.shadow;
       if(sh > 0 && frame.parentElement && frame.parentElement.id === "canvasEl"){
-        const d = DEVICES[state.device];
-        const radius = state.frameOn ? d.br : (state.canvas.on || state.roundScreen ? d.sr : 0);
+        const radius = state.frameOn ? DEVICES[state.device].br : outerRadius();
         const fx = buildFauxShadow(frame, radius, 10 + sh*0.42, 24 + sh*0.85, 0.06 + sh*0.0035);
         frame.parentElement.insertBefore(fx, frame);
         added.push(fx);
