@@ -188,6 +188,10 @@ body.fullview .stage{padding:36px 36px 92px}
   border-bottom:1px solid var(--line);
   display:flex;align-items:center;gap:10px;flex-wrap:wrap;
 }
+.lang-sel{
+  width:auto;padding:6px 8px;font-size:12px;border-radius:9px;
+  background:var(--panel-2);border:1px solid var(--line);cursor:pointer;
+}
 .panel-head .t{
   font-family:"Archivo",sans-serif;font-weight:700;font-size:12px;
   letter-spacing:.10em;text-transform:uppercase;color:var(--muted);
@@ -566,19 +570,19 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
     <div class="brand">
       <span class="mark"><svg viewBox="0 0 24 24"><path d="M20 3.5v12.2a3.4 3.4 0 1 1-2-3.1V7.2l-8 1.6v9.4a3.4 3.4 0 1 1-2-3.1V6.3l12-2.8z"/></svg></span>
       <h1>APPLE MUSIC MAKER</h1>
-      <span class="sub">iOS 플레이리스트 목업</span>
+      <span class="sub" id="brandSub"></span>
     </div>
 
     <div id="viewport"></div>
 
     <div class="stage-tools">
       <div class="zoom">
-        <button type="button" id="zoomOut" aria-label="축소"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8h10"/></svg></button>
+        <button type="button" id="zoomOut" aria-label="Zoom out"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 8h10"/></svg></button>
         <span class="val" id="zoomVal">100%</span>
-        <button type="button" id="zoomIn" aria-label="확대"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></button>
-        <button type="button" id="zoomFit" aria-label="맞춤" style="width:auto;padding:0 10px;font-size:11.5px;font-weight:600">맞춤</button>
+        <button type="button" id="zoomIn" aria-label="Zoom in"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></button>
+        <button type="button" id="zoomFit" aria-label="Fit" style="width:auto;padding:0 10px;font-size:11.5px;font-weight:600" id="zoomFitLabel"></button>
       </div>
-      <button type="button" class="btn" id="fullBtn">전체보기</button>
+      <button type="button" class="btn" id="fullBtn"></button>
     </div>
   </main>
 
@@ -586,8 +590,9 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
   <aside class="panel">
     <div class="panel-head">
       <span class="t">Controls</span>
-      <button type="button" class="btn ghost" id="themeBtn" title="에디터 테마">🌓</button>
-      <button type="button" class="btn primary" id="exportBtn">PNG 저장</button>
+      <select id="langSel" class="lang-sel" aria-label="Language"></select>
+      <button type="button" class="btn ghost" id="themeBtn" title="Editor theme" id="themeBtnEl">🌓</button>
+      <button type="button" class="btn primary" id="exportBtn"></button>
     </div>
     <div class="panel-body" id="panelBody"></div>
   </aside>
@@ -618,11 +623,11 @@ const DEVICES = {
   "air"       : {label:"iPhone Air", w:420, h:912, top:"island", sr:62, bez:[9,9,9], br:71}
 };
 const FRAME_COLORS = {
-  "black"  : {label:"블랙 티타늄", body:"#26262a", btn:"#3a3a3e"},
-  "natural": {label:"내추럴 티타늄", body:"#8d8b85", btn:"#a3a09a"},
-  "silver" : {label:"실버", body:"#d5d6d8", btn:"#bfc0c2"},
-  "gold"   : {label:"골드", body:"#c9a97e", btn:"#b3946c"},
-  "white"  : {label:"화이트", body:"#f2f2f4", btn:"#dcdcde"}
+  "black"  : {label:"fcBlack", body:"#26262a", btn:"#3a3a3e"},
+  "natural": {label:"fcNatural", body:"#8d8b85", btn:"#a3a09a"},
+  "silver" : {label:"fcSilver", body:"#d5d6d8", btn:"#bfc0c2"},
+  "gold"   : {label:"fcGold", body:"#c9a97e", btn:"#b3946c"},
+  "white"  : {label:"fcWhite", body:"#f2f2f4", btn:"#dcdcde"}
 };
 
 /* ============================================================
@@ -685,12 +690,20 @@ const I = {
 };
 
 /* ============================================================
-   4. STATE
+   4. LANGUAGE
+   ============================================================ */
+const LANGS = {ko:'한국어',en:'English',ja:'日本語',zh:'中文',ru:'Русский',de:'Deutsch',fr:'Français'};
+const STR = {"ko":{"gen1":"1세대","gen23":"2·3세대","imgSuffix":"이미지","sub":"iOS 플레이리스트 목업","zoomOut":"축소","zoomIn":"확대","fit":"맞춤","full":"전체보기","exitFull":"나가기","editorTheme":"에디터 테마","savePng":"PNG 저장","baking":"굽는 중…","controls":"CONTROLS","fcBlack":"블랙 티타늄","fcNatural":"내추럴 티타늄","fcSilver":"실버","fcGold":"골드","fcWhite":"화이트","tabHome":"홈","tabNew":"새로운 음악","tabRadio":"라디오","tabLibrary":"보관함","play":"재생","s1":"기기 &amp; 목업","s2":"배경 위에 올리기","s3":"화면 배경","s4":"상태바","s5":"상단 바","s6":"플레이리스트","s7":"곡 목록","s8":"미니 플레이어","s9":"탭 바","s10":"저장 &amp; 내보내기","frameOn":"애플 목업(기기 프레임) 표시","device":"기기","frameColor":"프레임 색상","roundScreen":"프레임 없을 때 모서리 둥글게","roundHint":"끄면 실제 아이폰 스크린샷처럼 네모나게 나와요.","shadows":"그림자 표시","shadowHint":"기기·앨범·미니플레이어·탭바의 그림자예요. 꺼두면 미리보기와 저장본이 무조건 똑같이 나옵니다. 아이폰·사파리는 그림자를 제대로 못 굽는 경우가 있어서 기본은 꺼짐이에요.","bgKind":"배경 종류","solid":"단색","gradient":"그라데이션","image":"이미지","bgImage":"배경 이미지","fill":"채우기","cover":"꽉 채우기","contain":"전체 보이기","customFit":"직접 조정","imgSize":"이미지 크기","posX":"가로 위치","posY":"세로 위치","colStart":"시작 색","colBg":"배경 색","colEnd":"끝 색","angle":"각도","dim":"어둡게","devScale":"기기 크기","pad":"여백","ratio":"캔버스 비율","auto":"자동","manual":"직접","wpx":"가로 (px)","hpx":"세로 (px)","sizeHint":"기기보다 작게 잡으면 잘려 보여요. 여백 슬라이더는 이 모드에선 무시됩니다.","canvasRadius":"캔버스 모서리","devShadow":"기기 그림자","tilt":"기울기","textTheme":"글자 테마","light":"밝게","dark":"어둡게","tintColor":"강조(틴트) 색","tintAuto":"배경에서 자동","tintManual":"직접 지정","tintLabel":"틴트 색","tintHint":"틴트는 곡 아티스트명·별표·탭바 라벨에 적용돼요. 애플뮤직이 앨범 색에서 뽑아 쓰는 그 색이에요.","statusShow":"상태바 표시","time":"현재 시각","battery":"배터리","charging":"충전 중","silent":"무음 모드 아이콘","signal":"신호 세기","bars":"칸","wifi":"Wi-Fi 아이콘","navShow":"상단 바 표시","navBack":"뒤로 가기","navPerson":"공동 작업자 추가","navShare":"공유","navMore":"더보기(⋯)","title":"제목","byline":"만든 사람 / 설명","albumCover":"앨범 커버","coverSize":"커버 크기","coverRadius":"커버 모서리","actShow":"재생 버튼 줄 표시","btnLabel":"버튼 문구","shuffleBtn":"셔플 버튼","dlBtn":"다운로드 버튼","pillColor":"재생 버튼 색","pillAuto":"배경에 맞춤","btnColor":"버튼 색","starsCol":"즐겨찾기 별표 열 표시","trackArt":"곡 앨범 이미지 표시","trackMore":"곡별 ⋯ 버튼","addSong":"＋ 곡 추가","songTitle":"곡 제목","artist":"아티스트","ytLink":"YouTube 링크","ytPaste":"YouTube 링크 붙여넣기","favourite":"즐겨찾기","moveUp":"위로","moveDown":"아래로","delete":"삭제","newSong":"새로운 곡","noTitle":"제목 없음","upload":"파일 업로드","clear":"지우기","miniShow":"미니 플레이어 표시","album":"앨범","pauseIcon":"일시정지 아이콘으로","fromList":"목록에서 가져오기","choose":"— 선택 —","tabShow":"탭 바 표시","searchBtn":"검색 버튼(원형)","selectedTab":"선택된 탭","tabNewShort":"새로운","tabAccent":"선택 탭 색","homeInd":"홈 인디케이터","savePng3":"PNG로 저장 (3배율)","saveJson":"설정 파일로 저장 (.json)","loadJson":"설정 파일 불러오기","resetAll":"기본값으로 초기화","compatMode":"저장 호환 모드","alwaysOn":"항상 켜기","off":"끄기","compatHint":"아이폰·사파리는 그림자를 제대로 못 굽습니다. 자동으로 감지해 안전한 방식으로 바꾸는데, 저장본 그림자가 네모로 나오면 “항상 켜기”로 두세요.","exportHint":"PNG는 화면에 보이는 그대로(배경·스크롤 위치 포함) 저장돼요. 설정은 브라우저에 남지 않으니, 이어서 만들 거면 .json으로 내려받아 두세요.","askReset":"모든 설정을 기본값으로 되돌릴까요?","errExport":"이미지로 굽는 데 실패했어요. 사진이 아주 크면 실패할 수 있어요 — 조금 작은 사진으로 다시 시도해 보세요.","errJson":"설정 파일을 읽지 못했어요. 이 도구에서 저장한 .json인지 확인해 주세요."},"en":{"gen1":"1st gen","gen23":"2nd/3rd gen","imgSuffix":"image","sub":"iOS playlist mockup","zoomOut":"Zoom out","zoomIn":"Zoom in","fit":"Fit","full":"Full view","exitFull":"Exit","editorTheme":"Editor theme","savePng":"Save PNG","baking":"Rendering…","controls":"CONTROLS","fcBlack":"Black Titanium","fcNatural":"Natural Titanium","fcSilver":"Silver","fcGold":"Gold","fcWhite":"White","tabHome":"Home","tabNew":"New","tabRadio":"Radio","tabLibrary":"Library","play":"Play","s1":"Device &amp; mockup","s2":"Place on a backdrop","s3":"Screen background","s4":"Status bar","s5":"Top bar","s6":"Playlist","s7":"Song list","s8":"Mini player","s9":"Tab bar","s10":"Save &amp; export","frameOn":"Show device frame","device":"Device","frameColor":"Frame colour","roundScreen":"Round corners without the frame","roundHint":"Off gives you square corners, like a real iPhone screenshot.","shadows":"Show shadows","shadowHint":"Shadows on the device, artwork, mini player and tab bar. With them off, the preview and the saved image always match. Safari on iPhone sometimes renders them wrong, so they start off.","bgKind":"Backdrop type","solid":"Solid","gradient":"Gradient","image":"Image","bgImage":"Backdrop image","fill":"Fill","cover":"Fill frame","contain":"Fit whole image","customFit":"Position manually","imgSize":"Image size","posX":"Horizontal position","posY":"Vertical position","colStart":"Start colour","colBg":"Background colour","colEnd":"End colour","angle":"Angle","dim":"Darken","devScale":"Device size","pad":"Padding","ratio":"Canvas ratio","auto":"Auto","manual":"Custom","wpx":"Width (px)","hpx":"Height (px)","sizeHint":"Smaller than the device and it gets cropped. The padding slider is ignored in this mode.","canvasRadius":"Canvas corners","devShadow":"Device shadow","tilt":"Tilt","textTheme":"Text theme","light":"Light","dark":"Dark","tintColor":"Accent (tint) colour","tintAuto":"From the background","tintManual":"Pick it myself","tintLabel":"Tint colour","tintHint":"The tint colours artist names, stars and tab labels — the colour Apple Music pulls from the artwork.","statusShow":"Show status bar","time":"Time","battery":"Battery","charging":"Charging","silent":"Silent mode icon","signal":"Signal strength","bars":"bars","wifi":"Wi-Fi icon","navShow":"Show top bar","navBack":"Back","navPerson":"Add collaborator","navShare":"Share","navMore":"More (⋯)","title":"Title","byline":"Curator / description","albumCover":"Artwork","coverSize":"Artwork size","coverRadius":"Artwork corners","actShow":"Show the play row","btnLabel":"Button label","shuffleBtn":"Shuffle button","dlBtn":"Download button","pillColor":"Play button colour","pillAuto":"Match the background","btnColor":"Button colour","starsCol":"Show the favourite star column","trackArt":"Show artwork for each song","trackMore":"⋯ button on each song","addSong":"＋ Add a song","songTitle":"Song title","artist":"Artist","ytLink":"YouTube link","ytPaste":"Paste a YouTube link","favourite":"Favourite","moveUp":"Move up","moveDown":"Move down","delete":"Delete","newSong":"New song","noTitle":"Untitled","upload":"Upload a file","clear":"Clear","miniShow":"Show the mini player","album":"Artwork","pauseIcon":"Use the pause icon","fromList":"Copy from the list","choose":"— Choose —","tabShow":"Show the tab bar","searchBtn":"Search button (circle)","selectedTab":"Selected tab","tabNewShort":"New","tabAccent":"Selected tab colour","homeInd":"Home indicator","savePng3":"Save as PNG (3×)","saveJson":"Save settings (.json)","loadJson":"Load settings","resetAll":"Reset to defaults","compatMode":"Save compatibility mode","alwaysOn":"Always on","off":"Off","compatHint":"Safari on iPhone can’t render shadows properly. This is detected automatically, but if the saved shadows come out as rectangles, set it to “Always on”.","exportHint":"The PNG matches what you see, backdrop and scroll position included. Settings aren’t kept in the browser — download the .json if you want to carry on later.","askReset":"Reset everything to the defaults?","errExport":"Rendering the image failed. A very large photo can cause this — try a smaller one.","errJson":"Couldn’t read that settings file. Make sure it’s a .json saved from this tool."},"ja":{"gen1":"第1世代","gen23":"第2・3世代","imgSuffix":"画像","sub":"iOS プレイリスト モックアップ","zoomOut":"縮小","zoomIn":"拡大","fit":"全体","full":"全画面","exitFull":"戻る","editorTheme":"エディタのテーマ","savePng":"PNG保存","baking":"書き出し中…","controls":"CONTROLS","fcBlack":"ブラックチタニウム","fcNatural":"ナチュラルチタニウム","fcSilver":"シルバー","fcGold":"ゴールド","fcWhite":"ホワイト","tabHome":"ホーム","tabNew":"ニューミュージック","tabRadio":"ラジオ","tabLibrary":"ライブラリ","play":"再生","s1":"デバイスとモックアップ","s2":"背景に置く","s3":"画面の背景","s4":"ステータスバー","s5":"上部バー","s6":"プレイリスト","s7":"曲リスト","s8":"ミニプレイヤー","s9":"タブバー","s10":"保存と書き出し","frameOn":"デバイスのフレームを表示","device":"デバイス","frameColor":"フレームの色","roundScreen":"フレームなしのとき角を丸くする","roundHint":"オフにすると実機のスクリーンショットと同じ四角い角になります。","shadows":"影を表示","shadowHint":"デバイス・アートワーク・ミニプレイヤー・タブバーの影です。オフにするとプレビューと保存画像が必ず一致します。iPhone の Safari では正しく書き出せないことがあるため初期値はオフです。","bgKind":"背景の種類","solid":"単色","gradient":"グラデーション","image":"画像","bgImage":"背景画像","fill":"フィット","cover":"全体を覆う","contain":"全体を表示","customFit":"手動で調整","imgSize":"画像サイズ","posX":"横位置","posY":"縦位置","colStart":"開始色","colBg":"背景色","colEnd":"終了色","angle":"角度","dim":"暗くする","devScale":"デバイスの大きさ","pad":"余白","ratio":"キャンバス比率","auto":"自動","manual":"手動","wpx":"幅 (px)","hpx":"高さ (px)","sizeHint":"デバイスより小さくすると見切れます。このモードでは余白スライダーは無視されます。","canvasRadius":"キャンバスの角","devShadow":"デバイスの影","tilt":"傾き","textTheme":"文字テーマ","light":"明るく","dark":"暗く","tintColor":"アクセント（ティント）色","tintAuto":"背景から自動","tintManual":"手動で指定","tintLabel":"ティント色","tintHint":"ティントは曲のアーティスト名・星・タブのラベルに使われます。Apple Music がアートワークから取る色です。","statusShow":"ステータスバーを表示","time":"時刻","battery":"バッテリー","charging":"充電中","silent":"消音モードのアイコン","signal":"電波の強さ","bars":"本","wifi":"Wi-Fi アイコン","navShow":"上部バーを表示","navBack":"戻る","navPerson":"共同制作者を追加","navShare":"共有","navMore":"その他 (⋯)","title":"タイトル","byline":"作成者 / 説明","albumCover":"アルバムアート","coverSize":"アートのサイズ","coverRadius":"アートの角","actShow":"再生ボタンの行を表示","btnLabel":"ボタンの文字","shuffleBtn":"シャッフルボタン","dlBtn":"ダウンロードボタン","pillColor":"再生ボタンの色","pillAuto":"背景に合わせる","btnColor":"ボタンの色","starsCol":"お気に入りの星の列を表示","trackArt":"曲ごとのアートを表示","trackMore":"曲ごとの ⋯ ボタン","addSong":"＋ 曲を追加","songTitle":"曲名","artist":"アーティスト","ytLink":"YouTube リンク","ytPaste":"YouTube リンクを貼り付け","favourite":"お気に入り","moveUp":"上へ","moveDown":"下へ","delete":"削除","newSong":"新しい曲","noTitle":"タイトルなし","upload":"ファイルを選択","clear":"消去","miniShow":"ミニプレイヤーを表示","album":"アートワーク","pauseIcon":"一時停止アイコンにする","fromList":"リストから取り込む","choose":"— 選択 —","tabShow":"タブバーを表示","searchBtn":"検索ボタン（円）","selectedTab":"選択中のタブ","tabNewShort":"ニュー","tabAccent":"選択タブの色","homeInd":"ホームインジケータ","savePng3":"PNG で保存（3倍）","saveJson":"設定を保存 (.json)","loadJson":"設定を読み込む","resetAll":"初期値に戻す","compatMode":"保存の互換モード","alwaysOn":"常にオン","off":"オフ","compatHint":"iPhone の Safari は影を正しく書き出せません。自動で判定しますが、保存した影が四角くなる場合は「常にオン」にしてください。","exportHint":"PNG は画面に見えるまま（背景・スクロール位置を含めて）保存されます。設定はブラウザに残らないので、続きを作るなら .json を保存してください。","askReset":"すべての設定を初期値に戻しますか？","errExport":"画像の書き出しに失敗しました。写真が非常に大きい場合に起こります。少し小さい写真でお試しください。","errJson":"設定ファイルを読み込めませんでした。このツールで保存した .json かご確認ください。"},"zh":{"gen1":"第1代","gen23":"第2/3代","imgSuffix":"图片","sub":"iOS 播放列表样机","zoomOut":"缩小","zoomIn":"放大","fit":"适应","full":"全屏","exitFull":"退出","editorTheme":"编辑器主题","savePng":"保存 PNG","baking":"生成中…","controls":"CONTROLS","fcBlack":"黑色钛金属","fcNatural":"原色钛金属","fcSilver":"银色","fcGold":"金色","fcWhite":"白色","tabHome":"主页","tabNew":"新音乐","tabRadio":"广播","tabLibrary":"资料库","play":"播放","s1":"设备与样机","s2":"放在背景上","s3":"屏幕背景","s4":"状态栏","s5":"顶部栏","s6":"播放列表","s7":"歌曲列表","s8":"迷你播放器","s9":"标签栏","s10":"保存与导出","frameOn":"显示设备外框","device":"设备","frameColor":"外框颜色","roundScreen":"无外框时圆角","roundHint":"关闭后会像真实 iPhone 截图一样是直角。","shadows":"显示阴影","shadowHint":"设备、专辑、迷你播放器和标签栏的阴影。关闭后预览与保存的图片必定一致。iPhone 上的 Safari 有时无法正确生成阴影，因此默认关闭。","bgKind":"背景类型","solid":"纯色","gradient":"渐变","image":"图片","bgImage":"背景图片","fill":"填充","cover":"填满","contain":"完整显示","customFit":"手动调整","imgSize":"图片大小","posX":"水平位置","posY":"垂直位置","colStart":"起始颜色","colBg":"背景颜色","colEnd":"结束颜色","angle":"角度","dim":"变暗","devScale":"设备大小","pad":"边距","ratio":"画布比例","auto":"自动","manual":"自定义","wpx":"宽度 (px)","hpx":"高度 (px)","sizeHint":"小于设备时会被裁切。此模式下忽略边距滑块。","canvasRadius":"画布圆角","devShadow":"设备阴影","tilt":"倾斜","textTheme":"文字主题","light":"浅色","dark":"深色","tintColor":"强调（着色）颜色","tintAuto":"从背景自动取色","tintManual":"手动指定","tintLabel":"着色颜色","tintHint":"着色应用于歌手名、星标和标签文字，也就是 Apple Music 从专辑封面提取的颜色。","statusShow":"显示状态栏","time":"时间","battery":"电量","charging":"充电中","silent":"静音图标","signal":"信号强度","bars":"格","wifi":"Wi-Fi 图标","navShow":"显示顶部栏","navBack":"返回","navPerson":"添加协作者","navShare":"分享","navMore":"更多 (⋯)","title":"标题","byline":"创建者 / 说明","albumCover":"专辑封面","coverSize":"封面大小","coverRadius":"封面圆角","actShow":"显示播放按钮行","btnLabel":"按钮文字","shuffleBtn":"随机播放按钮","dlBtn":"下载按钮","pillColor":"播放按钮颜色","pillAuto":"匹配背景","btnColor":"按钮颜色","starsCol":"显示收藏星标列","trackArt":"显示每首歌的封面","trackMore":"每首歌的 ⋯ 按钮","addSong":"＋ 添加歌曲","songTitle":"歌曲名","artist":"歌手","ytLink":"YouTube 链接","ytPaste":"粘贴 YouTube 链接","favourite":"收藏","moveUp":"上移","moveDown":"下移","delete":"删除","newSong":"新歌曲","noTitle":"无标题","upload":"上传文件","clear":"清除","miniShow":"显示迷你播放器","album":"封面","pauseIcon":"改用暂停图标","fromList":"从列表中选取","choose":"— 选择 —","tabShow":"显示标签栏","searchBtn":"搜索按钮（圆形）","selectedTab":"选中的标签","tabNewShort":"新音乐","tabAccent":"选中标签颜色","homeInd":"主屏幕指示条","savePng3":"保存为 PNG（3 倍）","saveJson":"保存设置 (.json)","loadJson":"载入设置","resetAll":"恢复默认","compatMode":"保存兼容模式","alwaysOn":"始终开启","off":"关闭","compatHint":"iPhone 上的 Safari 无法正确生成阴影。系统会自动判断；若保存后阴影呈方块状，请设为“始终开启”。","exportHint":"PNG 会完全按照屏幕所见保存（含背景与滚动位置）。设置不会留在浏览器中，若要继续制作请下载 .json。","askReset":"要将所有设置恢复为默认值吗？","errExport":"生成图片失败。照片过大时可能发生，请换一张小一点的图片重试。","errJson":"无法读取该设置文件。请确认是本工具保存的 .json。"},"ru":{"gen1":"1-е пок.","gen23":"2-е и 3-е пок.","imgSuffix":"изображение","sub":"Макет плейлиста iOS","zoomOut":"Уменьшить","zoomIn":"Увеличить","fit":"Вписать","full":"Во весь экран","exitFull":"Выйти","editorTheme":"Тема редактора","savePng":"Сохранить PNG","baking":"Рендеринг…","controls":"CONTROLS","fcBlack":"Чёрный титан","fcNatural":"Натуральный титан","fcSilver":"Серебристый","fcGold":"Золотой","fcWhite":"Белый","tabHome":"Главная","tabNew":"Новое","tabRadio":"Радио","tabLibrary":"Медиатека","play":"Слушать","s1":"Устройство и макет","s2":"Разместить на фоне","s3":"Фон экрана","s4":"Строка состояния","s5":"Верхняя панель","s6":"Плейлист","s7":"Список песен","s8":"Мини-плеер","s9":"Панель вкладок","s10":"Сохранение и экспорт","frameOn":"Показывать корпус устройства","device":"Устройство","frameColor":"Цвет корпуса","roundScreen":"Скруглять углы без корпуса","roundHint":"Если выключить, углы будут прямыми — как на реальном скриншоте iPhone.","shadows":"Показывать тени","shadowHint":"Тени устройства, обложки, мини-плеера и панели вкладок. Если выключить, превью и сохранённое изображение всегда совпадают. Safari на iPhone иногда отрисовывает их неверно, поэтому по умолчанию выключено.","bgKind":"Тип фона","solid":"Сплошной","gradient":"Градиент","image":"Изображение","bgImage":"Фоновое изображение","fill":"Заполнение","cover":"Заполнить","contain":"Целиком","customFit":"Вручную","imgSize":"Размер изображения","posX":"По горизонтали","posY":"По вертикали","colStart":"Начальный цвет","colBg":"Цвет фона","colEnd":"Конечный цвет","angle":"Угол","dim":"Затемнение","devScale":"Размер устройства","pad":"Отступ","ratio":"Пропорции холста","auto":"Авто","manual":"Свои","wpx":"Ширина (px)","hpx":"Высота (px)","sizeHint":"Меньше устройства — картинка обрежется. Ползунок отступа в этом режиме не действует.","canvasRadius":"Углы холста","devShadow":"Тень устройства","tilt":"Наклон","textTheme":"Тема текста","light":"Светлый","dark":"Тёмный","tintColor":"Акцентный цвет","tintAuto":"Из фона","tintManual":"Задать вручную","tintLabel":"Акцентный цвет","tintHint":"Акцент применяется к именам исполнителей, звёздам и подписям вкладок — тот самый цвет, что Apple Music берёт из обложки.","statusShow":"Показывать строку состояния","time":"Время","battery":"Батарея","charging":"Зарядка","silent":"Значок беззвучного режима","signal":"Уровень сигнала","bars":"дел.","wifi":"Значок Wi-Fi","navShow":"Показывать верхнюю панель","navBack":"Назад","navPerson":"Добавить участника","navShare":"Поделиться","navMore":"Ещё (⋯)","title":"Название","byline":"Автор / описание","albumCover":"Обложка","coverSize":"Размер обложки","coverRadius":"Углы обложки","actShow":"Показывать строку воспроизведения","btnLabel":"Текст кнопки","shuffleBtn":"Кнопка перемешивания","dlBtn":"Кнопка загрузки","pillColor":"Цвет кнопки","pillAuto":"Под фон","btnColor":"Цвет кнопки","starsCol":"Показывать столбец звёзд","trackArt":"Показывать обложки песен","trackMore":"Кнопка ⋯ у песен","addSong":"＋ Добавить песню","songTitle":"Название песни","artist":"Исполнитель","ytLink":"Ссылка YouTube","ytPaste":"Вставьте ссылку YouTube","favourite":"В избранное","moveUp":"Вверх","moveDown":"Вниз","delete":"Удалить","newSong":"Новая песня","noTitle":"Без названия","upload":"Загрузить файл","clear":"Убрать","miniShow":"Показывать мини-плеер","album":"Обложка","pauseIcon":"Значок паузы","fromList":"Взять из списка","choose":"— Выбрать —","tabShow":"Показывать панель вкладок","searchBtn":"Кнопка поиска (круг)","selectedTab":"Активная вкладка","tabNewShort":"Новое","tabAccent":"Цвет активной вкладки","homeInd":"Индикатор «Домой»","savePng3":"Сохранить PNG (3×)","saveJson":"Сохранить настройки (.json)","loadJson":"Загрузить настройки","resetAll":"Сбросить настройки","compatMode":"Режим совместимости","alwaysOn":"Всегда вкл.","off":"Выкл.","compatHint":"Safari на iPhone неправильно отрисовывает тени. Это определяется автоматически, но если тени в файле выходят прямоугольниками — включите «Всегда вкл.».","exportHint":"PNG сохраняется точно как на экране — вместе с фоном и позицией прокрутки. Настройки в браузере не хранятся: скачайте .json, чтобы продолжить позже.","askReset":"Сбросить все настройки?","errExport":"Не удалось создать изображение. Такое бывает с очень большими фото — попробуйте меньшее.","errJson":"Не удалось прочитать файл настроек. Убедитесь, что это .json из этого инструмента."},"de":{"gen1":"1. Gen.","gen23":"2./3. Gen.","imgSuffix":"Bild","sub":"iOS-Playlist-Mockup","zoomOut":"Verkleinern","zoomIn":"Vergrößern","fit":"Anpassen","full":"Vollbild","exitFull":"Beenden","editorTheme":"Editor-Thema","savePng":"PNG speichern","baking":"Wird erstellt…","controls":"CONTROLS","fcBlack":"Titan Schwarz","fcNatural":"Titan Natur","fcSilver":"Silber","fcGold":"Gold","fcWhite":"Weiß","tabHome":"Start","tabNew":"Neue Musik","tabRadio":"Radio","tabLibrary":"Mediathek","play":"Wiedergabe","s1":"Gerät &amp; Mockup","s2":"Auf Hintergrund legen","s3":"Bildschirmhintergrund","s4":"Statusleiste","s5":"Obere Leiste","s6":"Playlist","s7":"Titelliste","s8":"Mini-Player","s9":"Tab-Leiste","s10":"Speichern &amp; Export","frameOn":"Geräterahmen zeigen","device":"Gerät","frameColor":"Rahmenfarbe","roundScreen":"Ohne Rahmen abgerundet","roundHint":"Aus ergibt eckige Ecken wie bei einem echten iPhone-Screenshot.","shadows":"Schatten zeigen","shadowHint":"Schatten von Gerät, Cover, Mini-Player und Tab-Leiste. Ausgeschaltet stimmen Vorschau und gespeichertes Bild immer überein. Safari auf dem iPhone rendert sie manchmal falsch, daher standardmäßig aus.","bgKind":"Hintergrundart","solid":"Einfarbig","gradient":"Verlauf","image":"Bild","bgImage":"Hintergrundbild","fill":"Füllung","cover":"Ausfüllen","contain":"Ganz zeigen","customFit":"Manuell","imgSize":"Bildgröße","posX":"Horizontale Position","posY":"Vertikale Position","colStart":"Startfarbe","colBg":"Hintergrundfarbe","colEnd":"Endfarbe","angle":"Winkel","dim":"Abdunkeln","devScale":"Gerätegröße","pad":"Rand","ratio":"Leinwandformat","auto":"Auto","manual":"Eigene","wpx":"Breite (px)","hpx":"Höhe (px)","sizeHint":"Kleiner als das Gerät wird beschnitten. Der Rand-Regler wird hier ignoriert.","canvasRadius":"Leinwand-Ecken","devShadow":"Geräteschatten","tilt":"Neigung","textTheme":"Textthema","light":"Hell","dark":"Dunkel","tintColor":"Akzentfarbe (Tint)","tintAuto":"Aus dem Hintergrund","tintManual":"Selbst wählen","tintLabel":"Tint-Farbe","tintHint":"Der Tint färbt Interpretennamen, Sterne und Tab-Beschriftungen — die Farbe, die Apple Music aus dem Cover zieht.","statusShow":"Statusleiste zeigen","time":"Uhrzeit","battery":"Batterie","charging":"Lädt","silent":"Symbol für Lautlos","signal":"Signalstärke","bars":"Balken","wifi":"WLAN-Symbol","navShow":"Obere Leiste zeigen","navBack":"Zurück","navPerson":"Mitwirkende hinzufügen","navShare":"Teilen","navMore":"Mehr (⋯)","title":"Titel","byline":"Ersteller / Beschreibung","albumCover":"Cover","coverSize":"Cover-Größe","coverRadius":"Cover-Ecken","actShow":"Wiedergabe-Zeile zeigen","btnLabel":"Beschriftung","shuffleBtn":"Zufalls-Button","dlBtn":"Download-Button","pillColor":"Farbe des Buttons","pillAuto":"Zum Hintergrund passend","btnColor":"Button-Farbe","starsCol":"Favoriten-Spalte zeigen","trackArt":"Cover je Titel zeigen","trackMore":"⋯-Button je Titel","addSong":"＋ Titel hinzufügen","songTitle":"Titel","artist":"Interpret","ytLink":"YouTube-Link","ytPaste":"YouTube-Link einfügen","favourite":"Favorit","moveUp":"Nach oben","moveDown":"Nach unten","delete":"Löschen","newSong":"Neuer Titel","noTitle":"Ohne Titel","upload":"Datei wählen","clear":"Entfernen","miniShow":"Mini-Player zeigen","album":"Cover","pauseIcon":"Pause-Symbol","fromList":"Aus der Liste übernehmen","choose":"— Auswählen —","tabShow":"Tab-Leiste zeigen","searchBtn":"Suchen-Button (rund)","selectedTab":"Aktiver Tab","tabNewShort":"Neu","tabAccent":"Farbe des aktiven Tabs","homeInd":"Home-Indikator","savePng3":"Als PNG sichern (3×)","saveJson":"Einstellungen sichern (.json)","loadJson":"Einstellungen laden","resetAll":"Auf Standard zurücksetzen","compatMode":"Kompatibilitätsmodus","alwaysOn":"Immer an","off":"Aus","compatHint":"Safari auf dem iPhone kann Schatten nicht korrekt rendern. Das wird automatisch erkannt; kommen die Schatten als Rechtecke heraus, auf „Immer an“ stellen.","exportHint":"Das PNG entspricht genau der Ansicht, samt Hintergrund und Scrollposition. Einstellungen bleiben nicht im Browser — lade die .json, um später weiterzumachen.","askReset":"Alle Einstellungen zurücksetzen?","errExport":"Das Bild konnte nicht erstellt werden. Sehr große Fotos können das auslösen — versuche ein kleineres.","errJson":"Die Einstellungsdatei konnte nicht gelesen werden. Ist es eine .json aus diesem Tool?"},"fr":{"gen1":"1re gén.","gen23":"2e/3e gén.","imgSuffix":"image","sub":"Maquette de playlist iOS","zoomOut":"Réduire","zoomIn":"Agrandir","fit":"Ajuster","full":"Plein écran","exitFull":"Quitter","editorTheme":"Thème de l’éditeur","savePng":"Enregistrer PNG","baking":"Rendu…","controls":"CONTROLS","fcBlack":"Titane noir","fcNatural":"Titane naturel","fcSilver":"Argent","fcGold":"Or","fcWhite":"Blanc","tabHome":"Accueil","tabNew":"Nouveautés","tabRadio":"Radio","tabLibrary":"Médiathèque","play":"Lecture","s1":"Appareil et maquette","s2":"Placer sur un fond","s3":"Fond d’écran","s4":"Barre d’état","s5":"Barre supérieure","s6":"Playlist","s7":"Liste des titres","s8":"Mini-lecteur","s9":"Barre d’onglets","s10":"Sauvegarde et export","frameOn":"Afficher le cadre de l’appareil","device":"Appareil","frameColor":"Couleur du cadre","roundScreen":"Coins arrondis sans cadre","roundHint":"Désactivé, les coins sont droits, comme une vraie capture d’iPhone.","shadows":"Afficher les ombres","shadowHint":"Ombres de l’appareil, de la pochette, du mini-lecteur et de la barre d’onglets. Désactivées, l’aperçu et l’image enregistrée sont toujours identiques. Safari sur iPhone les rend parfois mal : désactivées par défaut.","bgKind":"Type de fond","solid":"Uni","gradient":"Dégradé","image":"Image","bgImage":"Image de fond","fill":"Remplissage","cover":"Remplir","contain":"Image entière","customFit":"Réglage manuel","imgSize":"Taille de l’image","posX":"Position horizontale","posY":"Position verticale","colStart":"Couleur de départ","colBg":"Couleur de fond","colEnd":"Couleur de fin","angle":"Angle","dim":"Assombrir","devScale":"Taille de l’appareil","pad":"Marge","ratio":"Format du canevas","auto":"Auto","manual":"Perso.","wpx":"Largeur (px)","hpx":"Hauteur (px)","sizeHint":"Plus petit que l’appareil, l’image est rognée. Le curseur de marge est ignoré dans ce mode.","canvasRadius":"Coins du canevas","devShadow":"Ombre de l’appareil","tilt":"Inclinaison","textTheme":"Thème du texte","light":"Clair","dark":"Sombre","tintColor":"Couleur d’accent (teinte)","tintAuto":"D’après le fond","tintManual":"Choisir moi-même","tintLabel":"Couleur de teinte","tintHint":"La teinte colore les noms d’artistes, les étoiles et les libellés d’onglets — la couleur qu’Apple Music extrait de la pochette.","statusShow":"Afficher la barre d’état","time":"Heure","battery":"Batterie","charging":"En charge","silent":"Icône mode silencieux","signal":"Force du signal","bars":"barres","wifi":"Icône Wi-Fi","navShow":"Afficher la barre supérieure","navBack":"Retour","navPerson":"Ajouter un collaborateur","navShare":"Partager","navMore":"Plus (⋯)","title":"Titre","byline":"Créateur / description","albumCover":"Pochette","coverSize":"Taille de la pochette","coverRadius":"Coins de la pochette","actShow":"Afficher la rangée Lecture","btnLabel":"Libellé du bouton","shuffleBtn":"Bouton aléatoire","dlBtn":"Bouton de téléchargement","pillColor":"Couleur du bouton","pillAuto":"Adapté au fond","btnColor":"Couleur du bouton","starsCol":"Afficher la colonne d’étoiles","trackArt":"Afficher la pochette par titre","trackMore":"Bouton ⋯ par titre","addSong":"＋ Ajouter un titre","songTitle":"Titre du morceau","artist":"Artiste","ytLink":"Lien YouTube","ytPaste":"Coller un lien YouTube","favourite":"Favori","moveUp":"Monter","moveDown":"Descendre","delete":"Supprimer","newSong":"Nouveau titre","noTitle":"Sans titre","upload":"Choisir un fichier","clear":"Effacer","miniShow":"Afficher le mini-lecteur","album":"Pochette","pauseIcon":"Icône pause","fromList":"Reprendre de la liste","choose":"— Choisir —","tabShow":"Afficher la barre d’onglets","searchBtn":"Bouton Rechercher (rond)","selectedTab":"Onglet actif","tabNewShort":"Nouveautés","tabAccent":"Couleur de l’onglet actif","homeInd":"Indicateur d’accueil","savePng3":"Enregistrer en PNG (3×)","saveJson":"Enregistrer les réglages (.json)","loadJson":"Charger des réglages","resetAll":"Réinitialiser","compatMode":"Mode de compatibilité","alwaysOn":"Toujours activé","off":"Désactivé","compatHint":"Safari sur iPhone ne rend pas les ombres correctement. La détection est automatique ; si les ombres sortent en rectangles, choisissez « Toujours activé ».","exportHint":"Le PNG correspond exactement à l’aperçu, fond et position de défilement compris. Les réglages ne sont pas conservés dans le navigateur : téléchargez le .json pour continuer plus tard.","askReset":"Réinitialiser tous les réglages ?","errExport":"Échec de la création de l’image. Une photo très grande peut en être la cause — essayez-en une plus petite.","errJson":"Impossible de lire ce fichier de réglages. Vérifiez qu’il s’agit d’un .json enregistré ici."}};
+function t(k){ const L = STR[state && state.lang] || STR.ko; return (L[k] !== undefined ? L[k] : STR.ko[k]) || k; }
+
+/* ============================================================
+   5. STATE
    ============================================================ */
 let SID = 0;
 const newTrack = (t="",a="")=>({id:++SID,title:t,artist:a,star:false,color:"#D1D1D6",img:null,yt:""});
 
 const state = {
+  lang:"ko",
   device:"16pro", frameOn:true, frameColor:"black", roundScreen:false,
   bg:{mode:"solid", c1:"#FFFFFF", c2:"#E8E8ED", angle:180},
   theme:"auto",
@@ -983,13 +996,13 @@ function renderScreen(){
   }
 
   /* -- tracks -- */
-  const tracksHtml = state.tracks.map((t,i)=>`
+  const tracksHtml = state.tracks.map((tk,i)=>`
     <div class="trk${i===0?" first":""}">
-      ${state.list.stars?`<span class="star">${t.star?I.star(P.tint):""}</span>`:""}
-      ${state.list.art?`<span class="tk-art" style="${artStyle(t)}">${artInner(t,P)}</span>`:""}
+      ${state.list.stars?`<span class="star">${tk.star?I.star(P.tint):""}</span>`:""}
+      ${state.list.art?`<span class="tk-art" style="${artStyle(tk)}">${artInner(tk,P)}</span>`:""}
       <span class="tk-meta">
-        <span class="tk-title" data-txt="t${i}.title" style="color:${P.ink}">${esc(t.title)}</span>
-        <span class="tk-artist" data-txt="t${i}.artist" style="color:${P.tint}">${esc(t.artist)}</span>
+        <span class="tk-title" data-txt="t${i}.title" style="color:${P.ink}">${esc(tk.title)}</span>
+        <span class="tk-artist" data-txt="t${i}.artist" style="color:${P.tint}">${esc(tk.artist)}</span>
       </span>
       ${state.list.more?`<span class="tk-more">${I.dots(P.tint,20)}</span>`:""}
     </div>`).join("");
@@ -1014,10 +1027,10 @@ function renderScreen(){
   let tabHtml = "";
   if(state.tab.show){
     const TABS = [
-      {k:"home",  lb:"홈",        ic:I.house},
-      {k:"new",   lb:"새로운 음악", ic:I.grid},
-      {k:"radio", lb:"라디오",     ic:I.radio},
-      {k:"library",lb:"보관함",    ic:I.library}
+      {k:"home",  lb:t("tabHome"),    ic:I.house},
+      {k:"new",   lb:t("tabNew"),     ic:I.grid},
+      {k:"radio", lb:t("tabRadio"),   ic:I.radio},
+      {k:"library",lb:t("tabLibrary"),ic:I.library}
     ];
     const items = TABS.map(t=>{
       const on = state.tab.active===t.k;
@@ -1152,15 +1165,15 @@ function rng(path,label,min,max,step,suffix=""){
 function artBlock(prefix,labelPrefix,siAttr=""){
   const o = get(prefix);
   const style = o.img?`background-image:url('${o.img}')`:`background-color:${o.color}`;
-  return `<div class="field"><label>${labelPrefix} 이미지</label>
+  return `<div class="field"><label>${labelPrefix} ${t("imgSuffix")}</label>
     <div class="thumb-pick">
       <span class="thumb-prev" data-prev="${prefix}" style="${style}"></span>
       <div style="flex:1;display:flex;flex-direction:column;gap:6px">
         <div class="row">
-          <button type="button" class="file-btn" data-upload="${prefix}">파일 업로드</button>
-          ${o.img?`<button type="button" class="btn danger" data-clearimg="${prefix}">지우기</button>`:""}
+          <button type="button" class="file-btn" data-upload="${prefix}">${t('upload')}</button>
+          ${o.img?`<button type="button" class="btn danger" data-clearimg="${prefix}">${t('clear')}</button>`:""}
         </div>
-        <input type="text" data-ytin="${prefix}" placeholder="YouTube 링크 붙여넣기" value="${esc(o.yt||"")}">
+        <input type="text" data-ytin="${prefix}" placeholder="${t('ytPaste')}" value="${esc(o.yt||"")}">
       </div>
     </div>
     <div class="row" style="margin-top:8px">
@@ -1177,15 +1190,18 @@ function imgPick(prefix,label){
       <span class="thumb-prev" style="${oo.img?`background-image:url('${oo.img}')`:"background-color:var(--panel-2)"}"></span>
       <div style="flex:1;display:flex;flex-direction:column;gap:6px">
         <div class="row">
-          <button type="button" class="file-btn" data-upload="${prefix}">파일 업로드</button>
-          ${oo.img?`<button type="button" class="btn danger" data-clearimg="${prefix}">지우기</button>`:""}
+          <button type="button" class="file-btn" data-upload="${prefix}">${t('upload')}</button>
+          ${oo.img?`<button type="button" class="btn danger" data-clearimg="${prefix}">${t('clear')}</button>`:""}
         </div>
       </div>
     </div>
   </div>`;
 }
 function deviceOptions(){
-  return Object.entries(DEVICES).map(([k,d])=>`<option value="${k}" ${state.device===k?"selected":""}>${d.label} · ${d.w}×${d.h}</option>`).join("");
+  return Object.entries(DEVICES).map(([k,d])=>{
+    const lbl = d.label.replace("1세대", t("gen1")).replace("2·3세대", t("gen23"));
+    return `<option value="${k}" ${state.device===k?"selected":""}>${lbl} · ${d.w}×${d.h}</option>`;
+  }).join("");
 }
 
 function renderPanel(){
@@ -1194,148 +1210,147 @@ function renderPanel(){
   const openState = [...body.querySelectorAll("details.sec")].map(d=>d.open);
   const scroll = body.scrollTop;
   body.innerHTML = `
-  <details class="sec" open><summary><span class="num">01</span>기기 &amp; 목업<span class="chev">${chev()}</span></summary>
+  <details class="sec" open><summary><span class="num">01</span>${t("s1")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      ${tog("frameOn","애플 목업(기기 프레임) 표시")}
-      <div class="field"><label>기기</label><select data-b="device">${deviceOptions()}</select></div>
-      <div class="field"><label>프레임 색상</label><select data-b="frameColor">${Object.entries(FRAME_COLORS).map(([k,v])=>`<option value="${k}" ${state.frameColor===k?"selected":""}>${v.label}</option>`).join("")}</select></div>
-      ${tog("roundScreen","프레임 없을 때 모서리 둥글게")}
-      <div class="hint">끄면 실제 아이폰 스크린샷처럼 네모나게 나와요.</div>
+      ${tog("frameOn",t("frameOn"))}
+      <div class="field"><label>${t("device")}</label><select data-b="device">${deviceOptions()}</select></div>
+      <div class="field"><label>${t("frameColor")}</label><select data-b="frameColor">${Object.entries(FRAME_COLORS).map(([k,v])=>`<option value="${k}" ${state.frameColor===k?"selected":""}>${t(v.label)}</option>`).join("")}</select></div>
+      ${tog("roundScreen",t("roundScreen"))}
+      <div class="hint">${t("roundHint")}</div>
       <div class="divider"></div>
-      ${tog("shadows","그림자 표시")}
-      <div class="hint">기기·앨범·미니플레이어·탭바의 그림자예요. 꺼두면 미리보기와 저장본이 무조건 똑같이 나옵니다. 아이폰·사파리는 그림자를 제대로 못 굽는 경우가 있어서 기본은 꺼짐이에요.</div>
-      <div class="hint">끄면 실제 아이폰 스크린샷처럼 네모나게 나와요.</div>
+      ${tog("shadows",t("shadows"))}
+      <div class="hint">${t("shadowHint")}</div>
     </div>
   </details>
 
-  <details class="sec"><summary><span class="num">02</span>배경 위에 올리기<span class="chev">${chev()}</span></summary>
+  <details class="sec"><summary><span class="num">02</span>${t("s2")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      ${tog("canvas.on","배경 위에 올리기")}
-      <div class="field"><label>배경 종류</label>${seg("canvas.mode",[["solid","단색"],["gradient","그라데이션"],["image","이미지"]])}</div>
+      ${tog("canvas.on",t("s2"))}
+      <div class="field"><label>${t("bgKind")}</label>${seg("canvas.mode",[["solid",t("solid")],["gradient",t("gradient")],["image",t("image")]])}</div>
       ${state.canvas.mode==="image"
-        ? imgPick("canvas","배경 이미지")
-          + `<div class="field"><label>채우기</label>${seg("canvas.fit",[["cover","꽉 채우기"],["contain","전체 보이기"],["custom","직접 조정"]])}</div>`
+        ? imgPick("canvas",t("bgImage"))
+          + `<div class="field"><label>${t("fill")}</label>${seg("canvas.fit",[["cover",t("cover")],["contain",t("contain")],["custom",t("customFit")]])}</div>`
           + (state.canvas.fit==="custom"
-              ? rng("canvas.zoom","이미지 크기",100,320,1,"%")
-                + rng("canvas.px","가로 위치",0,100,1,"%")
-                + rng("canvas.py","세로 위치",0,100,1,"%")
+              ? rng("canvas.zoom",t("imgSize"),100,320,1,"%")
+                + rng("canvas.px",t("posX"),0,100,1,"%")
+                + rng("canvas.py",t("posY"),0,100,1,"%")
               : "")
-        : colorRow("canvas.c1", state.canvas.mode==="gradient"?"시작 색":"배경 색", ["#EDE7F4","#FFFFFF","#0E0D12","#1B8A78","#F4D9E0","#DDE8F5","#F6EEDC","#2E2A5E"])
-          + (state.canvas.mode==="gradient" ? colorRow("canvas.c2","끝 색",["#CFC3E4","#FFFFFF","#000000","#0B3D5C","#FBE8C8","#7A1F3D","#30D158","#FF9F0A"]) + rng("canvas.angle","각도",0,360,1,"°") : "")}
-      ${rng("canvas.dim","어둡게",0,70,1,"%")}
+        : colorRow("canvas.c1", state.canvas.mode==="gradient"?t("colStart"):t("colBg"), ["#EDE7F4","#FFFFFF","#0E0D12","#1B8A78","#F4D9E0","#DDE8F5","#F6EEDC","#2E2A5E"])
+          + (state.canvas.mode==="gradient" ? colorRow("canvas.c2",t("colEnd"),["#CFC3E4","#FFFFFF","#000000","#0B3D5C","#FBE8C8","#7A1F3D","#30D158","#FF9F0A"]) + rng("canvas.angle",t("angle"),0,360,1,"°") : "")}
+      ${rng("canvas.dim",t("dim"),0,70,1,"%")}
       <div class="divider"></div>
-      ${rng("canvas.devScale","기기 크기",30,100,1,"%")}
-      ${rng("canvas.pad","여백",0,200,2,"px")}
-      <div class="field"><label>캔버스 비율</label>${seg("canvas.ratio",[["auto","자동"],["1:1","1:1"],["4:5","4:5"],["9:16","9:16"],["16:9","16:9"],["custom","직접"]])}</div>
+      ${rng("canvas.devScale",t("devScale"),30,100,1,"%")}
+      ${rng("canvas.pad",t("pad"),0,200,2,"px")}
+      <div class="field"><label>${t("ratio")}</label>${seg("canvas.ratio",[["auto",t("auto")],["1:1","1:1"],["4:5","4:5"],["9:16","9:16"],["16:9","16:9"],["custom",t("manual")]])}</div>
       ${state.canvas.ratio==="custom" ? `<div class="row">
-        <div class="field" style="flex:1"><label>가로 (px)</label><input type="number" data-b="canvas.cw" data-num="1" min="200" max="4000" step="10" value="${state.canvas.cw}"></div>
-        <div class="field" style="flex:1"><label>세로 (px)</label><input type="number" data-b="canvas.ch" data-num="1" min="200" max="4000" step="10" value="${state.canvas.ch}"></div>
+        <div class="field" style="flex:1"><label>${t("wpx")}</label><input type="number" data-b="canvas.cw" data-num="1" min="200" max="4000" step="10" value="${state.canvas.cw}"></div>
+        <div class="field" style="flex:1"><label>${t("hpx")}</label><input type="number" data-b="canvas.ch" data-num="1" min="200" max="4000" step="10" value="${state.canvas.ch}"></div>
       </div>
-      <div class="hint">기기보다 작게 잡으면 잘려 보여요. 여백 슬라이더는 이 모드에선 무시됩니다.</div>` : ""}
-      ${rng("canvas.radius","캔버스 모서리",0,64,1,"px")}
-      ${rng("canvas.shadow","기기 그림자",0,100,1,"")}
-      ${rng("canvas.tilt","기울기",-20,20,1,"°")}
+      <div class="hint">${t("sizeHint")}</div>` : ""}
+      ${rng("canvas.radius",t("canvasRadius"),0,64,1,"px")}
+      ${rng("canvas.shadow",t("devShadow"),0,100,1,"")}
+      ${rng("canvas.tilt",t("tilt"),-20,20,1,"°")}
     </div>
   </details>
 
-  <details class="sec" open><summary><span class="num">03</span>화면 배경<span class="chev">${chev()}</span></summary>
+  <details class="sec" open><summary><span class="num">03</span>${t("s3")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      ${seg("bg.mode",[["solid","단색"],["gradient","그라데이션"]])}
-      ${colorRow("bg.c1", state.bg.mode==="gradient"?"시작 색":"배경 색", SW_BG)}
-      ${state.bg.mode==="gradient"?colorRow("bg.c2","끝 색",SW_BG)+rng("bg.angle","각도",0,360,1,"°"):""}
+      ${seg("bg.mode",[["solid",t("solid")],["gradient",t("gradient")]])}
+      ${colorRow("bg.c1", state.bg.mode==="gradient"?t("colStart"):t("colBg"), SW_BG)}
+      ${state.bg.mode==="gradient"?colorRow("bg.c2",t("colEnd"),SW_BG)+rng("bg.angle",t("angle"),0,360,1,"°"):""}
       <div class="divider"></div>
-      <div class="field"><label>글자 테마</label>${seg("theme",[["auto","자동"],["light","밝게"],["dark","어둡게"]])}</div>
-      <div class="field"><label>강조(틴트) 색</label>${seg("tintMode",[["auto","배경에서 자동"],["custom","직접 지정"]])}</div>
-      ${state.tintMode==="custom"?colorRow("tint","틴트 색",SW_ART):""}
-      <div class="hint">틴트는 곡 아티스트명·별표·탭바 라벨에 적용돼요. 애플뮤직이 앨범 색에서 뽑아 쓰는 그 색이에요.</div>
+      <div class="field"><label>${t("textTheme")}</label>${seg("theme",[["auto",t("auto")],["light",t("light")],["dark",t("dark")]])}</div>
+      <div class="field"><label>${t("tintColor")}</label>${seg("tintMode",[["auto",t("tintAuto")],["custom",t("tintManual")]])}</div>
+      ${state.tintMode==="custom"?colorRow("tint",t("tintLabel"),SW_ART):""}
+      <div class="hint">${t("tintHint")}</div>
     </div>
   </details>
 
-  <details class="sec"><summary><span class="num">04</span>상태바<span class="chev">${chev()}</span></summary>
+  <details class="sec"><summary><span class="num">04</span>${t("s4")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      ${tog("status.show","상태바 표시")}
-      ${txt("status.time","현재 시각","9:41")}
-      ${rng("status.battery","배터리",0,100,1,"%")}
-      ${tog("status.charging","충전 중")}
-      ${tog("status.silent","무음 모드 아이콘")}
-      ${rng("status.signal","신호 세기",0,4,1,"칸")}
-      ${tog("status.wifi","Wi-Fi 아이콘")}
+      ${tog("status.show",t("statusShow"))}
+      ${txt("status.time",t("time"),"9:41")}
+      ${rng("status.battery",t("battery"),0,100,1,"%")}
+      ${tog("status.charging",t("charging"))}
+      ${tog("status.silent",t("silent"))}
+      ${rng("status.signal",t("signal"),0,4,1," "+t("bars"))}
+      ${tog("status.wifi",t("wifi"))}
     </div>
   </details>
 
-  <details class="sec"><summary><span class="num">05</span>상단 바<span class="chev">${chev()}</span></summary>
+  <details class="sec"><summary><span class="num">05</span>${t("s5")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      ${tog("nav.show","상단 바 표시")}
-      ${tog("nav.back","뒤로 가기")}
-      ${tog("nav.person","공동 작업자 추가")}
-      ${tog("nav.share","공유")}
-      ${tog("nav.more","더보기(⋯)")}
+      ${tog("nav.show",t("navShow"))}
+      ${tog("nav.back",t("navBack"))}
+      ${tog("nav.person",t("navPerson"))}
+      ${tog("nav.share",t("navShare"))}
+      ${tog("nav.more",t("navMore"))}
     </div>
   </details>
 
-  <details class="sec" open><summary><span class="num">06</span>플레이리스트<span class="chev">${chev()}</span></summary>
+  <details class="sec" open><summary><span class="num">06</span>${t("s6")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      ${txt("pl.title","제목")}
-      ${txt("pl.artist","만든 사람 / 설명")}
-      ${artBlock("pl","앨범 커버")}
-      ${rng("pl.size","커버 크기",40,92,1,"%")}
-      ${rng("pl.radius","커버 모서리",0,40,1,"px")}
+      ${txt("pl.title",t("title"))}
+      ${txt("pl.artist",t("byline"))}
+      ${artBlock("pl",t("albumCover"))}
+      ${rng("pl.size",t("coverSize"),40,92,1,"%")}
+      ${rng("pl.radius",t("coverRadius"),0,40,1,"px")}
       <div class="divider"></div>
-      ${tog("act.show","재생 버튼 줄 표시")}
-      ${txt("act.label","버튼 문구","재생")}
-      ${tog("act.shuffle","셔플 버튼")}
-      ${tog("act.download","다운로드 버튼")}
-      <div class="field"><label>재생 버튼 색</label>${seg("act.pillMode",[["auto","배경에 맞춤"],["custom","직접 지정"]])}</div>
-      ${state.act.pillMode==="custom"?colorRow("act.pillBg","버튼 색",["#FFFFFF","#000000","#FA243C","#F2F2F7","#1C1C1E"]):""}
+      ${tog("act.show",t("actShow"))}
+      ${txt("act.label",t("btnLabel"),t("play"))}
+      ${tog("act.shuffle",t("shuffleBtn"))}
+      ${tog("act.download",t("dlBtn"))}
+      <div class="field"><label>${t("pillColor")}</label>${seg("act.pillMode",[["auto",t("pillAuto")],["custom",t("tintManual")]])}</div>
+      ${state.act.pillMode==="custom"?colorRow("act.pillBg",t("btnColor"),["#FFFFFF","#000000","#FA243C","#F2F2F7","#1C1C1E"]):""}
     </div>
   </details>
 
-  <details class="sec" open><summary><span class="num">07</span>곡 목록<span class="chev">${chev()}</span></summary>
+  <details class="sec" open><summary><span class="num">07</span>${t("s7")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      ${tog("list.stars","즐겨찾기 별표 열 표시")}
-      ${tog("list.art","곡 앨범 이미지 표시")}
-      ${tog("list.more","곡별 ⋯ 버튼")}
+      ${tog("list.stars",t("starsCol"))}
+      ${tog("list.art",t("trackArt"))}
+      ${tog("list.more",t("trackMore"))}
       <div class="divider"></div>
       <div class="songs" id="songs"></div>
-      <button type="button" class="btn full" id="addSong">＋ 곡 추가</button>
+      <button type="button" class="btn full" id="addSong">${t("addSong")}</button>
     </div>
   </details>
 
-  <details class="sec"><summary><span class="num">08</span>미니 플레이어<span class="chev">${chev()}</span></summary>
+  <details class="sec"><summary><span class="num">08</span>${t("s8")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      ${tog("mini.show","미니 플레이어 표시")}
-      ${txt("mini.title","곡 제목")}
-      ${txt("mini.artist","아티스트")}
-      ${artBlock("mini","앨범")}
-      ${tog("mini.playing","일시정지 아이콘으로")}
-      <div class="field"><label>목록에서 가져오기</label>
-        <select id="miniFrom"><option value="">— 선택 —</option></select>
+      ${tog("mini.show",t("miniShow"))}
+      ${txt("mini.title",t("songTitle"))}
+      ${txt("mini.artist",t("artist"))}
+      ${artBlock("mini",t("album"))}
+      ${tog("mini.playing",t("pauseIcon"))}
+      <div class="field"><label>${t("fromList")}</label>
+        <select id="miniFrom"><option value="">${t("choose")}</option></select>
       </div>
     </div>
   </details>
 
-  <details class="sec"><summary><span class="num">09</span>탭 바<span class="chev">${chev()}</span></summary>
+  <details class="sec"><summary><span class="num">09</span>${t("s9")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      ${tog("tab.show","탭 바 표시")}
-      ${tog("tab.search","검색 버튼(원형)")}
-      <div class="field"><label>선택된 탭</label>${seg("tab.active",[["home","홈"],["new","새로운"],["radio","라디오"],["library","보관함"]])}</div>
-      ${colorRow("tab.accent","선택 탭 색",["#FA243C","#FF375F","#0A84FF","#30D158","#FF9F0A","#000000","#FFFFFF"])}
+      ${tog("tab.show",t("tabShow"))}
+      ${tog("tab.search",t("searchBtn"))}
+      <div class="field"><label>${t("selectedTab")}</label>${seg("tab.active",[["home",t("tabHome")],["new",t("tabNewShort")],["radio",t("tabRadio")],["library",t("tabLibrary")]])}</div>
+      ${colorRow("tab.accent",t("tabAccent"),["#FA243C","#FF375F","#0A84FF","#30D158","#FF9F0A","#000000","#FFFFFF"])}
       <div class="divider"></div>
-      ${tog("homeInd","홈 인디케이터")}
+      ${tog("homeInd",t("homeInd"))}
     </div>
   </details>
 
-  <details class="sec"><summary><span class="num">10</span>저장 &amp; 내보내기<span class="chev">${chev()}</span></summary>
+  <details class="sec"><summary><span class="num">10</span>${t("s10")}<span class="chev">${chev()}</span></summary>
     <div class="sec-body">
-      <button type="button" class="btn full primary" id="exportBtn2">PNG로 저장 (3배율)</button>
-      <button type="button" class="btn full" id="saveJson">설정 파일로 저장 (.json)</button>
-      <button type="button" class="btn full" id="loadJson">설정 파일 불러오기</button>
-      <button type="button" class="btn full" id="resetAll">기본값으로 초기화</button>
+      <button type="button" class="btn full primary" id="exportBtn2">${t("savePng3")}</button>
+      <button type="button" class="btn full" id="saveJson">${t("saveJson")}</button>
+      <button type="button" class="btn full" id="loadJson">${t("loadJson")}</button>
+      <button type="button" class="btn full" id="resetAll">${t("resetAll")}</button>
       <div class="divider"></div>
-      <div class="field"><label>저장 호환 모드</label>${seg("exportFlat",[["auto","자동"],["on","항상 켜기"],["off","끄기"]])}
-        <div class="hint">아이폰·사파리는 그림자를 제대로 못 굽습니다. 자동으로 감지해 안전한 방식으로 바꾸는데, 저장본 그림자가 네모로 나오면 "항상 켜기"로 두세요.</div>
+      <div class="field"><label>${t("compatMode")}</label>${seg("exportFlat",[["auto",t("auto")],["on",t("alwaysOn")],["off",t("off")]])}
+        <div class="hint">${t("compatHint")}</div>
       </div>
-      <div class="hint">PNG는 화면에 보이는 그대로(배경·스크롤 위치 포함) 저장돼요. 설정은 브라우저에 남지 않으니, 이어서 만들 거면 .json으로 내려받아 두세요.</div>
+      <div class="hint">${t("exportHint")}</div>
     </div>
   </details>`;
   if(openState.length){
@@ -1349,28 +1364,28 @@ function chev(){return `<svg width="12" height="12" viewBox="0 0 14 14" fill="no
 function renderSongs(){
   const wrap = document.getElementById("songs");
   if(!wrap) return;
-  wrap.innerHTML = state.tracks.map((t,i)=>{
-    const style = t.img?`background-image:url('${t.img}')`:`background-color:${t.color}`;
+  wrap.innerHTML = state.tracks.map((tk,i)=>{
+    const style = tk.img?`background-image:url('${tk.img}')`:`background-color:${tk.color}`;
     return `<div class="song-card" data-si="${i}">
       <div class="head">
         <span class="idx">${String(i+1).padStart(2,"0")}</span>
         <span class="grow"></span>
-        <button type="button" class="icon-btn" data-star="${i}" title="즐겨찾기" style="${t.star?"color:#FA243C":""}">${I.star("currentColor").replace('viewBox','width="13" height="13" viewBox')}</button>
-        <button type="button" class="icon-btn" data-mv="${i}" data-dir="-1" ${i===0?"disabled":""} title="위로">${I.up("currentColor")}</button>
-        <button type="button" class="icon-btn" data-mv="${i}" data-dir="1" ${i===state.tracks.length-1?"disabled":""} title="아래로">${I.down("currentColor")}</button>
-        <button type="button" class="icon-btn" data-del="${i}" title="삭제">${I.trash("currentColor")}</button>
+        <button type="button" class="icon-btn" data-star="${i}" title="${t('favourite')}" style="${tk.star?"color:#FA243C":""}">${I.star("currentColor").replace('viewBox','width="13" height="13" viewBox')}</button>
+        <button type="button" class="icon-btn" data-mv="${i}" data-dir="-1" ${i===0?"disabled":""} title="${t('moveUp')}">${I.up("currentColor")}</button>
+        <button type="button" class="icon-btn" data-mv="${i}" data-dir="1" ${i===state.tracks.length-1?"disabled":""} title="${t('moveDown')}">${I.down("currentColor")}</button>
+        <button type="button" class="icon-btn" data-del="${i}" title="${t('delete')}">${I.trash("currentColor")}</button>
       </div>
-      <input type="text" data-si="${i}" data-tb="title" value="${esc(t.title)}" placeholder="곡 제목">
-      <input type="text" data-si="${i}" data-tb="artist" value="${esc(t.artist)}" placeholder="아티스트">
+      <input type="text" data-si="${i}" data-tb="title" value="${esc(tk.title)}" placeholder="${t('songTitle')}">
+      <input type="text" data-si="${i}" data-tb="artist" value="${esc(tk.artist)}" placeholder="${t('artist')}">
       <div class="thumb-pick">
         <span class="thumb-prev" style="${style}"></span>
         <div style="flex:1;display:flex;flex-direction:column;gap:6px">
           <div class="row">
-            <button type="button" class="file-btn" data-upload="track:${i}">파일 업로드</button>
-            ${t.img?`<button type="button" class="btn danger" data-clearimg="track:${i}">지우기</button>`:""}
-            <input type="color" data-si="${i}" data-tb="color" value="${t.color}">
+            <button type="button" class="file-btn" data-upload="track:${i}">${t('upload')}</button>
+            ${tk.img?`<button type="button" class="btn danger" data-clearimg="track:${i}">${t('clear')}</button>`:""}
+            <input type="color" data-si="${i}" data-tb="color" value="${tk.color}">
           </div>
-          <input type="text" data-ytin="track:${i}" placeholder="YouTube 링크" value="${esc(t.yt||"")}">
+          <input type="text" data-ytin="track:${i}" placeholder="${t('ytLink')}" value="${esc(tk.yt||"")}">
         </div>
       </div>
     </div>`;
@@ -1584,7 +1599,7 @@ panelBody.addEventListener("click", e=>{
     renderScreen(); renderPanel(); return;
   }
   if(el.id === "addSong"){
-    state.tracks.push(newTrack("새로운 곡","아티스트"));
+    state.tracks.push(newTrack(t("newSong"),t("artist")));
     renderScreen(); renderPanel();
     panelBody.querySelector(".song-card:last-child input[data-tb=title]").focus();
     return;
@@ -1593,9 +1608,9 @@ panelBody.addEventListener("click", e=>{
   if(el.id === "saveJson"){ saveJson(); return; }
   if(el.id === "loadJson"){ loadJson(); return; }
   if(el.id === "resetAll"){
-    if(confirm("모든 설정을 기본값으로 되돌릴까요?")){
+    if(confirm(t("askReset"))){
       Object.keys(DEFAULTS).forEach(k=>{ state[k] = structuredClone(DEFAULTS[k]); });
-      renderScreen(); renderPanel();
+      fillLangs(); applyChrome(); renderScreen(); renderPanel();
     }
     return;
   }
@@ -1603,8 +1618,8 @@ panelBody.addEventListener("click", e=>{
 
 /* the list changes while the panel is open, so fill this in at the moment it opens */
 function fillMiniFrom(sel){
-  sel.innerHTML = `<option value="">— 선택 —</option>` +
-    state.tracks.map((t,i)=>`<option value="${i}">${i+1}. ${esc(t.title||"제목 없음")}</option>`).join("");
+  sel.innerHTML = `<option value="">${t("choose")}</option>` +
+    state.tracks.map((tk,i)=>`<option value="${i}">${i+1}. ${esc(tk.title||t("noTitle"))}</option>`).join("");
   sel.value = "";
 }
 panelBody.addEventListener("mousedown", e=>{ if(e.target.id === "miniFrom") fillMiniFrom(e.target); }, true);
@@ -1657,11 +1672,37 @@ document.getElementById("zoomOut").onclick = ()=>{ autoFit=false; zoom=Math.max(
 document.getElementById("zoomFit").onclick = ()=>{ autoFit=true; zoom=1; fitIfAuto(); };
 window.addEventListener("resize", ()=>fitIfAuto());
 
+/* every label outside the option panel */
+function applyChrome(){
+  const sub = document.getElementById("brandSub");
+  if(sub) sub.textContent = t("sub");
+  const zf = document.getElementById("zoomFitLabel");
+  if(zf) zf.textContent = t("fit");
+  const fb = document.getElementById("fullBtn");
+  if(fb) fb.textContent = document.body.classList.contains("fullview") ? t("exitFull") : t("full");
+  const eb = document.getElementById("exportBtn");
+  if(eb && !eb.disabled) eb.textContent = t("savePng");
+  const tb = document.getElementById("themeBtnEl");
+  if(tb) tb.title = t("editorTheme");
+}
+const langSel = document.getElementById("langSel");
+function fillLangs(){
+  langSel.innerHTML = Object.entries(LANGS)
+    .map(([k,v])=>`<option value="${k}" ${state.lang===k?"selected":""}>${v}</option>`).join("");
+}
+langSel.addEventListener("change", ()=>{
+  const from = state.lang, to = langSel.value;
+  /* only replace the play-button text if it is still the untouched default */
+  if(state.act.label === (STR[from]||{}).play) state.act.label = (STR[to]||{}).play;
+  state.lang = to;
+  renderScreen(); renderPanel(); applyChrome();
+});
+
 /* full view */
 const fullBtn = document.getElementById("fullBtn");
 function setFull(on){
   document.body.classList.toggle("fullview", on);
-  fullBtn.textContent = on ? "나가기" : "전체보기";
+  fullBtn.textContent = on ? t("exitFull") : t("full");
   autoFit = true; requestAnimationFrame(fitIfAuto);
 }
 fullBtn.onclick = ()=> setFull(!document.body.classList.contains("fullview"));
@@ -1820,7 +1861,7 @@ async function exportPng(){
   const live = viewport.querySelector("#canvasEl");
   if(!live) return;
   const label = exportBtn.textContent;
-  exportBtn.textContent = "굽는 중…"; exportBtn.disabled = true;
+  exportBtn.textContent = t("baking"); exportBtn.disabled = true;
 
   /* work on a detached copy: the live preview is never touched, so nothing is left
      half-modified if the browser suspends the page while handing over the download */
@@ -2006,11 +2047,11 @@ async function exportPng(){
     const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,"");
     download(blob, `apple-music-${stamp}.png`);
   }catch(err){
-    alert("이미지로 굽는 데 실패했어요. 사진이 아주 크면 실패할 수 있어요 — 조금 작은 사진으로 다시 시도해 보세요.");
+    alert(t("errExport"));
     console.error(err);
   }finally{
     holder.remove();
-    exportBtn.textContent = label; exportBtn.disabled = false;
+    exportBtn.textContent = label; exportBtn.disabled = false; applyChrome();
   }
 }
 exportBtn.onclick = exportPng;
@@ -2044,8 +2085,8 @@ function loadJson(){
         merged.tracks = (Array.isArray(data.tracks) && data.tracks.length ? data.tracks : DEFAULTS.tracks)
           .map(t => Object.assign(newTrack(), t));
         Object.keys(DEFAULTS).forEach(k=>{ state[k] = merged[k]; });
-        renderScreen(); renderPanel();
-      }catch(e){ alert("설정 파일을 읽지 못했어요. 이 도구에서 저장한 .json인지 확인해 주세요."); }
+        fillLangs(); applyChrome(); renderScreen(); renderPanel();
+      }catch(e){ alert(t("errJson")); }
     };
     r.readAsText(f);
   });
@@ -2056,6 +2097,8 @@ function loadJson(){
    11. BOOT
    ============================================================ */
 const DEFAULTS = structuredClone(state);
+fillLangs();
+applyChrome();
 renderScreen();
 renderPanel();
 requestAnimationFrame(()=>fitIfAuto());
