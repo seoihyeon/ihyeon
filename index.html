@@ -703,6 +703,7 @@ const state = {
   mini:{show:true, title:"Kirari", artist:"Fujii Kaze", color:"#D1D1D6", img:null, playing:false},
   tab:{show:true, active:"library", search:true, accent:"#FA243C"},
   homeInd:true,
+  exportFlat:"auto",
   canvas:{on:false, mode:"solid", c1:"#EDE7F4", c2:"#CFC3E4", angle:160,
           img:null, imgAR:1, fit:"cover", zoom:100, px:50, py:50, devScale:100,
           dim:0, pad:60, ratio:"auto", cw:1080, ch:1350, radius:28,
@@ -1311,6 +1312,10 @@ function renderPanel(){
       <button type="button" class="btn full" id="saveJson">설정 파일로 저장 (.json)</button>
       <button type="button" class="btn full" id="loadJson">설정 파일 불러오기</button>
       <button type="button" class="btn full" id="resetAll">기본값으로 초기화</button>
+      <div class="divider"></div>
+      <div class="field"><label>저장 호환 모드</label>${seg("exportFlat",[["auto","자동"],["on","항상 켜기"],["off","끄기"]])}
+        <div class="hint">아이폰·사파리는 그림자를 제대로 못 굽습니다. 자동으로 감지해 안전한 방식으로 바꾸는데, 저장본 그림자가 네모로 나오면 "항상 켜기"로 두세요.</div>
+      </div>
       <div class="hint">PNG는 화면에 보이는 그대로(배경·스크롤 위치 포함) 저장돼요. 설정은 브라우저에 남지 않으니, 이어서 만들 거면 .json으로 내려받아 두세요.</div>
     </div>
   </details>`;
@@ -1642,13 +1647,19 @@ function download(blobOrUrl, name){
   document.body.appendChild(a); a.click(); a.remove();
 }
 const exportBtn = document.getElementById("exportBtn");
-/* ── WebKit (Safari / every iOS browser) drops the blur when it rasterises a
-   box-shadow inside the SVG the capture uses, painting a hard rectangle instead.
-   Probe once for it, then approximate blurred shadows with a stack of zero-blur
-   rings, which every engine draws identically. ───────────────────────────── */
+/* ── WebKit (Safari, and every browser on iOS) rasterises box-shadow without its
+   blur AND without its border-radius, so shadows come out as hard rectangles.
+   Detect it, then draw the device shadow out of real rounded elements instead. ── */
 let shadowBlurOk = null;
+function looksLikeWebKit(){
+  const ua = navigator.userAgent;
+  if(/iPad|iPhone|iPod/.test(ua)) return true;
+  if(/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) return true;   /* iPad desktop mode */
+  return /Safari/.test(ua) && !/Chrome|Chromium|Android|Edg|OPR/.test(ua);
+}
 async function probeShadowBlur(){
   if(shadowBlurOk !== null) return shadowBlurOk;
+  if(looksLikeWebKit()){ shadowBlurOk = false; return shadowBlurOk; }
   try{
     const svg =
       '<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">' +
@@ -1668,20 +1679,31 @@ async function probeShadowBlur(){
   }catch(e){ shadowBlurOk = false; }
   return shadowBlurOk;
 }
-/* a blurred drop shadow, rebuilt as concentric hard-edged rings */
-function stackShadow(y, blur, alpha, n = 16){
-  /* a Gaussian of radius `blur` reaches roughly blur/2 past the edge; spread the rings
-     over that distance and give each 1/n of the opacity so they sum to `alpha` at the edge */
-  const out = [];
-  for(let i = 1; i <= n; i++){
-    const f = i/n;
-    out.push(`0 ${(y*f).toFixed(1)}px 0 ${(blur*0.5*f).toFixed(1)}px rgba(0,0,0,${(alpha/n).toFixed(4)})`);
+/* a soft drop shadow built from nested rounded divs — every engine draws these right */
+function buildFauxShadow(frame, radius, y, blur, alpha, n = 10){
+  const wrap = document.createElement("div");
+  const cs = getComputedStyle(frame);
+  wrap.className = "faux-shadow";
+  wrap.style.cssText =
+    `position:absolute;left:${frame.offsetLeft}px;top:${frame.offsetTop}px;` +
+    `width:${frame.offsetWidth}px;height:${frame.offsetHeight}px;z-index:1;pointer-events:none;` +
+    `transform:${cs.transform === "none" ? "" : cs.transform};transform-origin:${cs.transformOrigin};`;
+  const reach = blur * 0.55;
+  for(let i = n; i >= 1; i--){
+    const f = i/n, e = reach*f, oy = y*f;
+    const ring = document.createElement("div");
+    ring.style.cssText =
+      `position:absolute;left:${-e}px;right:${-e}px;top:${-e+oy}px;bottom:${-e-oy}px;` +
+      `border-radius:${radius + e}px;background:rgba(0,0,0,${(alpha/n).toFixed(4)});`;
+    wrap.appendChild(ring);
   }
-  return out.reverse().join(",");
+  return wrap;
 }
 
 async function exportPng(){
-  const node = state.canvas.on ? viewport.querySelector("#canvasEl") : viewport.querySelector(".frame");
+  /* always capture the backdrop element: with no backdrop it is just transparent
+     padding, which is what gives the drop shadow room instead of clipping it */
+  const node = viewport.querySelector("#canvasEl");
   if(!node) return;
   const prevT = viewport.style.transform, prevW = viewport.style.width, prevH = viewport.style.height;
   const label = exportBtn.textContent;
@@ -1697,34 +1719,38 @@ async function exportPng(){
 
   /* swap in engine-safe shadows where the capture would otherwise mangle them */
   const restore = [];
-  if(!(await probeShadowBlur())){
+  const added = [];
+  const flat = state.exportFlat === "on" ? true
+             : state.exportFlat === "off" ? false
+             : !(await probeShadowBlur());
+  if(flat){
     const P = palette();
-    const barA = P.light ? .24 : .13;
-    const bar  = stackShadow(6, P.light ? 24 : 22, barA);
     const line = P.glassLine;
     /* the same engines drop backdrop-filter here too, so firm the bars up a little
        to stand in for the blur that won't be drawn */
-    const firm = P.light ? "rgba(0,0,0,.52)" : "rgba(255,255,255,.90)";
+    const firm = P.light ? "rgba(0,0,0,.54)" : "rgba(255,255,255,.92)";
     node.querySelectorAll(".mini,.tabbar,.tab-search").forEach(el=>{
       restore.push([el, "boxShadow", el.style.boxShadow]);
       restore.push([el, "background", el.style.background]);
-      el.style.boxShadow = `${bar},inset 0 0 0 .5px ${line}`;
+      el.style.boxShadow = `inset 0 0 0 .5px ${line}`;
       el.style.background = firm;
     });
-    node.querySelectorAll(".play-pill").forEach(el=>{
+    node.querySelectorAll(".play-pill,.cover").forEach(el=>{
       restore.push([el, "boxShadow", el.style.boxShadow]);
-      el.style.boxShadow = bar;
+      el.style.boxShadow = "none";
     });
-    node.querySelectorAll(".cover").forEach(el=>{
-      restore.push([el, "boxShadow", el.style.boxShadow]);
-      el.style.boxShadow = stackShadow(10, 26, .26);
-    });
-    const sh = state.canvas.shadow;
     const frame = node.classList.contains("frame") ? node : node.querySelector(".frame");
     if(frame){
       restore.push([frame, "--dev-shadow", frame.style.getPropertyValue("--dev-shadow")]);
-      frame.style.setProperty("--dev-shadow",
-        sh <= 0 ? "none" : stackShadow(10 + sh*0.42, 24 + sh*0.85, 0.06 + sh*0.0035));
+      frame.style.setProperty("--dev-shadow", "none");
+      const sh = state.canvas.shadow;
+      if(sh > 0 && frame.parentElement && frame.parentElement.id === "canvasEl"){
+        const d = DEVICES[state.device];
+        const radius = state.frameOn ? d.br : (state.canvas.on || state.roundScreen ? d.sr : 0);
+        const fx = buildFauxShadow(frame, radius, 10 + sh*0.42, 24 + sh*0.85, 0.06 + sh*0.0035);
+        frame.parentElement.insertBefore(fx, frame);
+        added.push(fx);
+      }
     }
   }
 
@@ -1743,6 +1769,7 @@ async function exportPng(){
     alert("이미지로 굽는 데 실패했어요. 유튜브 썸네일을 쓰는 중이라면 이미지 파일로 직접 올려 보세요.");
     console.error(err);
   }finally{
+    added.forEach(el => el.remove());
     restore.forEach(([el, prop, val]) => {
       if(prop === "boxShadow") el.style.boxShadow = val;
       else if(prop === "background") el.style.background = val;
