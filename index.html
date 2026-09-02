@@ -442,6 +442,7 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
 .cover-wrap,.pl-title,.pl-artist,.action-row{flex:none}
 
 .cover-wrap{display:flex;justify-content:center;padding:10px 0 0}
+.screen.flat .cover{box-shadow:none}
 .cover{
   width:70%;aspect-ratio:1;
   border-radius:10px;
@@ -703,6 +704,7 @@ const state = {
   mini:{show:true, title:"Kirari", artist:"Fujii Kaze", color:"#D1D1D6", img:null, playing:false},
   tab:{show:true, active:"library", search:true, accent:"#FA243C"},
   homeInd:true,
+  shadows:false,
   exportFlat:"auto",
   canvas:{on:false, mode:"solid", c1:"#EDE7F4", c2:"#CFC3E4", angle:160,
           img:null, imgAR:1, fit:"cover", zoom:100, px:50, py:50, devScale:100,
@@ -730,7 +732,8 @@ function palette(){
     onPill:     state.act.pillMode==="auto"
                   ? (light ? deepTint(base, state.tab.accent) : state.tab.accent)
                   : (luminance(state.act.pillBg) > .55 ? deepTint(base, state.tab.accent) : "#FFFFFF"),
-    barShadow:  light ? "0 6px 24px rgba(0,0,0,.24)" : "0 6px 22px rgba(0,0,0,.13)"
+    barShadow:  light ? "0 6px 24px rgba(0,0,0,.24)" : "0 6px 22px rgba(0,0,0,.13)",
+    barLine:    light ? "rgba(255,255,255,.16)" : "rgba(0,0,0,.10)"
   };
 }
 
@@ -837,7 +840,7 @@ function devTransform(ds){
   return parts.length ? `transform:${parts.join(" ")};` : "";
 }
 function devShadowCss(){
-  const sh = state.canvas.shadow;
+  const sh = state.shadows ? state.canvas.shadow : 0;
   return sh<=0 ? "none"
     : `0 ${Math.round(10+sh*0.42)}px ${Math.round(24+sh*0.85)}px rgba(0,0,0,${(0.06+sh*0.0035).toFixed(3)})`;
 }
@@ -965,7 +968,7 @@ function renderScreen(){
     actHtml = `
       <div class="action-row">
         ${state.act.shuffle?`<span class="act-circle" style="background:${P.glass}">${I.shuffle(P.ink)}</span>`:""}
-        <div class="play-pill" style="background:${P.pillBg};color:${P.onPill};box-shadow:${P.barShadow}">
+        <div class="play-pill" style="background:${P.pillBg};color:${P.onPill};${state.shadows?`box-shadow:${P.barShadow}`:""}">
           ${I.play(P.onPill,16)}<span data-txt="act.label">${esc(state.act.label)}</span>
         </div>
         ${state.act.download?`<span class="act-circle" style="background:${P.glass}">${I.download(P.ink)}</span>`:""}
@@ -988,7 +991,7 @@ function renderScreen(){
   let miniHtml = "";
   if(state.mini.show){
     miniHtml = `
-      <div class="mini glass" style="background:${P.barBg};box-shadow:${P.barShadow},inset 0 0 0 .5px ${P.glassLine}">
+      <div class="mini glass" style="background:${P.barBg};border:.5px solid ${P.barLine};${state.shadows?`box-shadow:${P.barShadow}`:""}">
         <span class="mini-art" style="${artStyle(state.mini)}">${artInner(state.mini,P)}</span>
         <span class="mini-meta">
           <span class="mini-title" data-txt="mini.title" style="color:${P.ink}">${esc(state.mini.title)}</span>
@@ -1019,8 +1022,8 @@ function renderScreen(){
     }).join("");
     tabHtml = `
       <div class="tabrow">
-        <div class="tabbar glass" style="background:${P.barBg};box-shadow:${P.barShadow},inset 0 0 0 .5px ${P.glassLine}">${items}</div>
-        ${state.tab.search?`<div class="tab-search glass" style="background:${P.barBg};box-shadow:${P.barShadow},inset 0 0 0 .5px ${P.glassLine}">${I.search(P.tint)}</div>`:""}
+        <div class="tabbar glass" style="background:${P.barBg};border:.5px solid ${P.barLine};${state.shadows?`box-shadow:${P.barShadow}`:""}">${items}</div>
+        ${state.tab.search?`<div class="tab-search glass" style="background:${P.barBg};border:.5px solid ${P.barLine};${state.shadows?`box-shadow:${P.barShadow}`:""}">${I.search(P.tint)}</div>`:""}
       </div>`;
   }
 
@@ -1040,7 +1043,7 @@ function renderScreen(){
   const screenRadius = outerRadius();
 
   const screenHtml = `
-    <div class="screen" id="screenEl" style="width:${d.w}px;height:${d.h}px;border-radius:${screenRadius}px;background:${bgCss()}">
+    <div class="screen${state.shadows?"":" flat"}" id="screenEl" style="width:${d.w}px;height:${d.h}px;border-radius:${screenRadius}px;background:${bgCss()}">
       ${hw}
       ${statusHtml}
       ${navHtml}
@@ -1190,6 +1193,10 @@ function renderPanel(){
       <div class="field"><label>기기</label><select data-b="device">${deviceOptions()}</select></div>
       <div class="field"><label>프레임 색상</label><select data-b="frameColor">${Object.entries(FRAME_COLORS).map(([k,v])=>`<option value="${k}" ${state.frameColor===k?"selected":""}>${v.label}</option>`).join("")}</select></div>
       ${tog("roundScreen","프레임 없을 때 모서리 둥글게")}
+      <div class="hint">끄면 실제 아이폰 스크린샷처럼 네모나게 나와요.</div>
+      <div class="divider"></div>
+      ${tog("shadows","그림자 표시")}
+      <div class="hint">기기·앨범·미니플레이어·탭바의 그림자예요. 꺼두면 미리보기와 저장본이 무조건 똑같이 나옵니다. 아이폰·사파리는 그림자를 제대로 못 굽는 경우가 있어서 기본은 꺼짐이에요.</div>
       <div class="hint">끄면 실제 아이폰 스크린샷처럼 네모나게 나와요.</div>
     </div>
   </details>
@@ -1684,6 +1691,17 @@ async function probeShadowBlur(){
   }catch(e){ shadowBlurOk = false; }
   return shadowBlurOk;
 }
+function addRings(wrap, w, h, radius, y, blur, alpha, n){
+  const reach = blur * 0.55;
+  for(let i = n; i >= 1; i--){
+    const f = i/n, e = reach*f, oy = y*f;
+    const ring = document.createElement("div");
+    ring.style.cssText =
+      `position:absolute;left:${-e}px;top:${-e+oy}px;width:${w+2*e}px;height:${h+2*e}px;` +
+      `border-radius:${radius + e}px;background:rgba(0,0,0,${(alpha/n).toFixed(4)});`;
+    wrap.appendChild(ring);
+  }
+}
 /* Give one element a soft shadow made of nested rounded divs, sitting just behind it.
    Returns the nodes/style changes so the export can undo them afterwards. */
 function attachFauxShadow(el, y, blur, alpha, n = 8, addTo, undo){
@@ -1697,7 +1715,10 @@ function attachFauxShadow(el, y, blur, alpha, n = 8, addTo, undo){
   const cs = getComputedStyle(el);
   const w = el.offsetWidth, h = el.offsetHeight;
   const radius = Math.min(parseFloat(cs.borderTopLeftRadius) || 0, Math.min(w, h)/2);
-  const pr = parent.getBoundingClientRect(), er = el.getBoundingClientRect();
+  const left = el.offsetParent === parent ? el.offsetLeft
+             : el.getBoundingClientRect().left - parent.getBoundingClientRect().left;
+  const top  = el.offsetParent === parent ? el.offsetTop
+             : el.getBoundingClientRect().top  - parent.getBoundingClientRect().top;
 
   undo.push([el, "position", el.style.position], [el, "zIndex", el.style.zIndex]);
   if(cs.position === "static") el.style.position = "relative";
@@ -1705,17 +1726,9 @@ function attachFauxShadow(el, y, blur, alpha, n = 8, addTo, undo){
 
   const wrap = document.createElement("div");
   wrap.style.cssText =
-    `position:absolute;left:${er.left-pr.left}px;top:${er.top-pr.top}px;` +
+    `position:absolute;left:${left}px;top:${top}px;` +
     `width:${w}px;height:${h}px;z-index:0;pointer-events:none;`;
-  const reach = blur * 0.55;
-  for(let i = n; i >= 1; i--){
-    const f = i/n, e = reach*f, oy = y*f;
-    const ring = document.createElement("div");
-    ring.style.cssText =
-      `position:absolute;left:${-e}px;right:${-e}px;top:${-e+oy}px;bottom:${-e-oy}px;` +
-      `border-radius:${radius + e}px;background:rgba(0,0,0,${(alpha/n).toFixed(4)});`;
-    wrap.appendChild(ring);
-  }
+  addRings(wrap, w, h, radius, y, blur, alpha, n);
   parent.insertBefore(wrap, el);
   addTo.push(wrap);
 }
@@ -1729,15 +1742,7 @@ function buildFauxShadow(frame, radius, y, blur, alpha, n = 10){
     `position:absolute;left:${frame.offsetLeft}px;top:${frame.offsetTop}px;` +
     `width:${frame.offsetWidth}px;height:${frame.offsetHeight}px;z-index:1;pointer-events:none;` +
     `transform:${cs.transform === "none" ? "" : cs.transform};transform-origin:${cs.transformOrigin};`;
-  const reach = blur * 0.55;
-  for(let i = n; i >= 1; i--){
-    const f = i/n, e = reach*f, oy = y*f;
-    const ring = document.createElement("div");
-    ring.style.cssText =
-      `position:absolute;left:${-e}px;right:${-e}px;top:${-e+oy}px;bottom:${-e-oy}px;` +
-      `border-radius:${radius + e}px;background:rgba(0,0,0,${(alpha/n).toFixed(4)});`;
-    wrap.appendChild(ring);
-  }
+  addRings(wrap, frame.offsetWidth, frame.offsetHeight, radius, y, blur, alpha, n);
   return wrap;
 }
 
@@ -1766,19 +1771,18 @@ async function exportPng(){
              : !(await probeShadowBlur());
   if(flat){
     const P = palette();
-    const line = P.glassLine;
-    /* the same engines drop backdrop-filter here too, so firm the bars up a little
-       to stand in for the blur that won't be drawn */
+    /* these engines drop backdrop-filter in the capture too, so firm the bars up
+       a little to stand in for the blur that won't be drawn */
     const firm = P.light ? "rgba(0,0,0,.48)" : "rgba(255,255,255,.88)";
-    const barY = 6, barBlur = P.light ? 24 : 22, barA = P.light ? .24 : .13;
     node.querySelectorAll(".mini,.tabbar,.tab-search").forEach(el=>{
-      restore.push([el, "boxShadow", el.style.boxShadow]);
       restore.push([el, "background", el.style.background]);
-      el.style.boxShadow = `inset 0 0 0 .5px ${line}`;
       el.style.background = firm;
-      attachFauxShadow(el, barY, barBlur, barA, 8, added, restore);
     });
-    node.querySelectorAll(".play-pill").forEach(el=>{
+  }
+  if(flat && state.shadows){
+    const P = palette();
+    const barY = 6, barBlur = P.light ? 24 : 22, barA = P.light ? .24 : .13;
+    node.querySelectorAll(".mini,.tabbar,.tab-search,.play-pill").forEach(el=>{
       restore.push([el, "boxShadow", el.style.boxShadow]);
       el.style.boxShadow = "none";
       attachFauxShadow(el, barY, barBlur, barA, 8, added, restore);
