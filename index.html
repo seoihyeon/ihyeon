@@ -434,7 +434,6 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
 .content{
   flex:1;display:flex;flex-direction:column;min-height:0;
   overflow-y:auto;overflow-x:hidden;
-  -webkit-overflow-scrolling:touch;
   overscroll-behavior:contain;
   scrollbar-width:none;
 }
@@ -444,7 +443,7 @@ input[type=color]::-webkit-color-swatch{border:0;border-radius:5px}
 .cover-wrap{display:flex;justify-content:center;padding:10px 0 0}
 .screen.flat .cover{box-shadow:none}
 .cover{
-  width:70%;aspect-ratio:1;
+  width:70%;
   border-radius:10px;
   background:#D1D1D6 center/cover no-repeat;
   box-shadow:0 10px 26px rgba(0,0,0,.26);
@@ -762,7 +761,9 @@ function requestCanvas(){
 function fastCover(){
   const c = document.querySelector("#screenEl .cover");
   if(!c) return false;
-  c.style.width = screenMetrics().coverPx + "px";
+  const cp = screenMetrics().coverPx;
+  c.style.width = cp + "px";
+  c.style.height = cp + "px";
   c.style.borderRadius = state.pl.radius + "px";
   return true;
 }
@@ -1054,7 +1055,7 @@ function renderScreen(){
       ${statusHtml}
       ${navHtml}
       <div class="content">
-        <div class="cover-wrap"><div class="cover" style="width:${coverPx}px;border-radius:${state.pl.radius}px;${artStyle(state.pl)}">${artInner(state.pl,P)}</div></div>
+        <div class="cover-wrap"><div class="cover" style="width:${coverPx}px;height:${coverPx}px;border-radius:${state.pl.radius}px;${artStyle(state.pl)}">${artInner(state.pl,P)}</div></div>
         <div class="pl-title" data-txt="pl.title" style="color:${P.ink}">${esc(state.pl.title)}</div>
         <div class="pl-artist" data-txt="pl.artist" style="color:${P.ink2}">${esc(state.pl.artist)}</div>
         ${actHtml}
@@ -1383,6 +1384,24 @@ function targetObj(t){
   if(t.startsWith("track:")) return state.tracks[+t.split(":")[1]];
   return get(t);
 }
+/* A photo straight off a phone is 4000 px wide and several MB as a data URL, which
+   is far more than the mockup can use and enough to make saving fail. Cap it. */
+const MAX_EDGE = 1600;
+async function shrinkImage(dataUrl, keepAlpha){
+  const im = await loadImg(dataUrl);
+  if(!im || !im.naturalWidth) return dataUrl;
+  const long = Math.max(im.naturalWidth, im.naturalHeight);
+  if(long <= MAX_EDGE && dataUrl.length < 900000) return dataUrl;
+  const k = Math.min(1, MAX_EDGE / long);
+  const cv = document.createElement("canvas");
+  cv.width  = Math.round(im.naturalWidth  * k);
+  cv.height = Math.round(im.naturalHeight * k);
+  const cx = cv.getContext("2d");
+  cx.drawImage(im, 0, 0, cv.width, cv.height);
+  try{
+    return keepAlpha ? cv.toDataURL("image/png") : cv.toDataURL("image/jpeg", 0.9);
+  }catch(e){ return dataUrl; }
+}
 function pickFile(cb){
   const inp = document.createElement("input");
   inp.type="file"; inp.accept="image/*";
@@ -1390,7 +1409,10 @@ function pickFile(cb){
     const f = inp.files && inp.files[0];
     if(!f) return;
     const r = new FileReader();
-    r.onload = ()=>cb(r.result);
+    r.onload = async ()=>{
+      const keepAlpha = /png|webp|gif/i.test(f.type || "");
+      cb(await shrinkImage(r.result, keepAlpha));
+    };
     r.readAsDataURL(f);
   });
   inp.click();
@@ -1752,81 +1774,242 @@ function buildFauxShadow(frame, radius, y, blur, alpha, n = 10){
   return wrap;
 }
 
+/* ── Saving, done deterministically ─────────────────────────────────────────
+   Safari rasterises the page snapshot before the photos inside it have decoded,
+   so the same click randomly produced a full image, a photo-less one, or a blank
+   one. The cure is to stop asking it to wait: the snapshot is taken with every
+   photo stripped out (pure vector + text, nothing to load), and the photos are
+   painted onto the canvas here, where drawing is synchronous.
+   ────────────────────────────────────────────────────────────────────────── */
+function roundRectPath(ctx, x, y, w, h, r){
+  r = Math.max(0, Math.min(r, Math.min(w, h)/2));
+  ctx.moveTo(x+r, y);
+  ctx.lineTo(x+w-r, y);        ctx.arcTo(x+w, y,     x+w, y+r,   r);
+  ctx.lineTo(x+w, y+h-r);      ctx.arcTo(x+w, y+h,   x+w-r, y+h, r);
+  ctx.lineTo(x+r, y+h);        ctx.arcTo(x,   y+h,   x,   y+h-r, r);
+  ctx.lineTo(x, y+r);          ctx.arcTo(x,   y,     x+r, y,     r);
+  ctx.closePath();
+}
+/* paint an image into a box the way CSS background-size/position would */
+function paintImage(ctx, img, b, mode, zoom, px, py){
+  const ir = img.naturalWidth / img.naturalHeight;
+  let dw, dh;
+  if(mode === "custom"){
+    const coverPct = Math.max(100, 100 * (b.h/b.w) * ir);
+    dw = b.w * (coverPct * zoom / 100) / 100;
+    dh = dw / ir;
+  } else {
+    const fitW = mode === "contain" ? ir > b.w/b.h : ir < b.w/b.h;
+    if(fitW){ dw = b.w; dh = b.w / ir; } else { dh = b.h; dw = b.h * ir; }
+  }
+  const fx = mode === "custom" ? px/100 : 0.5;
+  const fy = mode === "custom" ? py/100 : 0.5;
+  ctx.drawImage(img, b.x + (b.w - dw)*fx, b.y + (b.h - dh)*fy, dw, dh);
+}
+function cssGradient(ctx, w, h, deg, c1, c2){
+  const a = deg * Math.PI/180;
+  const L = Math.abs(w*Math.sin(a)) + Math.abs(h*Math.cos(a));
+  const g = ctx.createLinearGradient(
+    w/2 - Math.sin(a)*L/2, h/2 + Math.cos(a)*L/2,
+    w/2 + Math.sin(a)*L/2, h/2 - Math.cos(a)*L/2);
+  g.addColorStop(0, c1); g.addColorStop(1, c2);
+  return g;
+}
+
 async function exportPng(){
-  /* always capture the backdrop element: with no backdrop it is just transparent
-     padding, which is what gives the drop shadow room instead of clipping it */
-  const node = viewport.querySelector("#canvasEl");
-  if(!node) return;
-  const prevT = viewport.style.transform, prevW = viewport.style.width, prevH = viewport.style.height;
+  const live = viewport.querySelector("#canvasEl");
+  if(!live) return;
   const label = exportBtn.textContent;
   exportBtn.textContent = "굽는 중…"; exportBtn.disabled = true;
-  viewport.style.transform = "none"; viewport.style.width = ""; viewport.style.height = "";
 
-  /* The capture re-renders a clone, which starts unscrolled — fold the list's scroll
-     into a transform so what you see is what you save. */
-  const sc = node.querySelector(".content");
-  const st = sc ? sc.scrollTop : 0;
-  const kids = sc ? Array.from(sc.children) : [];
-  if(st){ kids.forEach(k=>{ k.style.transform = `translateY(${-st}px)`; }); sc.scrollTop = 0; }
-
-  /* swap in engine-safe shadows where the capture would otherwise mangle them */
-  const restore = [];
-  const added = [];
-  const flat = state.exportFlat === "on" ? true
-             : state.exportFlat === "off" ? false
-             : !(await probeShadowBlur());
-  if(flat && state.shadows){
-    const P = palette();
-    const barY = 6, barBlur = P.light ? 24 : 22, barA = P.light ? .24 : .13;
-    node.querySelectorAll(".mini,.tabbar,.tab-search,.play-pill").forEach(el=>{
-      restore.push([el, "boxShadow", el.style.boxShadow]);
-      el.style.boxShadow = "none";
-      attachFauxShadow(el, barY, barBlur, barA, 8, added, restore);
-    });
-    node.querySelectorAll(".cover").forEach(el=>{
-      restore.push([el, "boxShadow", el.style.boxShadow]);
-      el.style.boxShadow = "none";
-      attachFauxShadow(el, 10, 26, .26, 8, added, restore);
-    });
-    const frame = node.classList.contains("frame") ? node : node.querySelector(".frame");
-    if(frame){
-      restore.push([frame, "--dev-shadow", frame.style.getPropertyValue("--dev-shadow")]);
-      frame.style.setProperty("--dev-shadow", "none");
-      const sh = state.canvas.shadow;
-      if(sh > 0 && frame.parentElement && frame.parentElement.id === "canvasEl"){
-        const radius = state.frameOn ? DEVICES[state.device].br : outerRadius();
-        const fx = buildFauxShadow(frame, radius, 10 + sh*0.42, 24 + sh*0.85, 0.06 + sh*0.0035);
-        frame.parentElement.insertBefore(fx, frame);
-        added.push(fx);
-      }
-    }
-  }
+  /* work on a detached copy: the live preview is never touched, so nothing is left
+     half-modified if the browser suspends the page while handing over the download */
+  const holder = document.createElement("div");
+  holder.setAttribute("aria-hidden", "true");
+  holder.style.cssText = "position:fixed;left:-99999px;top:0;width:0;height:0;pointer-events:none;";
+  const node = live.cloneNode(true);
+  node.removeAttribute("id");
+  node.style.transform = "none";
+  holder.appendChild(node);
+  document.body.appendChild(holder);
 
   try{
-    const blob = await htmlToImage.toBlob(node, {
-      pixelRatio: 3,
-      skipFonts: true,          /* the mockup uses system faces; don't stall on webfonts */
-      cacheBust: false,
-      width: node.offsetWidth,
-      height: node.offsetHeight
+    const cv = state.canvas;
+    const SCALE = 3;
+    const W = node.offsetWidth, H = node.offsetHeight;
+
+    /* the capture cannot cope with a scrollable box, so bake the scroll into a shift */
+    const liveSc = live.querySelector(".content");
+    const sc = node.querySelector(".content");
+    if(liveSc && sc){
+      const st = liveSc.scrollTop;
+      sc.style.flex = "none";
+      sc.style.height = liveSc.clientHeight + "px";
+      sc.style.overflow = "hidden";
+      if(st) Array.from(sc.children).forEach(k=>{ k.style.transform = `translateY(${-st}px)`; });
+    }
+
+    const frame = node.querySelector(".frame");
+    if(!frame) throw new Error("no frame");
+    frame.style.transform = "none";                 /* measure and capture it upright */
+    frame.style.setProperty("--dev-shadow", "none"); /* its shadow is painted here instead */
+
+    const flat = state.exportFlat === "on" ? true
+               : state.exportFlat === "off" ? false
+               : !(await probeShadowBlur());
+    if(flat && state.shadows){
+      const P = palette(), junk = [], bin = [];
+      const barY = 6, barBlur = P.light ? 24 : 22, barA = P.light ? .24 : .13;
+      frame.querySelectorAll(".mini,.tabbar,.tab-search,.play-pill").forEach(el=>{
+        el.style.boxShadow = "none";
+        attachFauxShadow(el, barY, barBlur, barA, 8, junk, bin);
+      });
+      frame.querySelectorAll(".cover").forEach(el=>{
+        el.style.boxShadow = "none";
+        attachFauxShadow(el, 10, 26, .26, 8, junk, bin);
+      });
+    }
+
+    /* ---- measure every photo, then strip it out of what gets captured ---- */
+    const fb = frame.getBoundingClientRect();
+    const fw = Math.round(fb.width), fh = Math.round(fb.height);
+    const rel = el => { const r = el.getBoundingClientRect();
+      return {x:r.left-fb.left, y:r.top-fb.top, w:r.width, h:r.height}; };
+    const radOf = el => parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+    const urlOf = el => {
+      const bi = el.style.backgroundImage;
+      if(!bi || bi.indexOf("url(") !== 0) return null;
+      return bi.slice(4, -1).replace(/^["']|["']$/g, "");
+    };
+
+    const inner = [], loads = [];
+    const grab = (el, bucket) => {
+      const u = urlOf(el);
+      if(!u) return;
+      bucket.push({url:u, box:rel(el), r:radOf(el)});
+      el.style.backgroundImage = "none";
+    };
+    frame.querySelectorAll(".cover,.tk-art").forEach(el => grab(el, inner));
+    const miniArt = [];
+    frame.querySelectorAll(".mini-art").forEach(el => grab(el, miniArt));
+
+    const screenEl = frame.querySelector(".screen");
+    const screenBox = rel(screenEl), screenR = outerRadius();
+    const contentBox = sc ? rel(sc) : null;
+    const barBoxes = [];
+    frame.querySelectorAll(".mini,.tabbar,.tab-search").forEach(el=>{
+      barBoxes.push({box:rel(el), r:radOf(el)});
     });
+
+    /* backdrop photo is painted straight onto the canvas, never captured */
+    const bgFill = node.querySelector(".bg-fill");
+    let bgUrl = null;
+    if(bgFill){ bgUrl = urlOf(bgFill); bgFill.remove(); }
+    const bgDim = node.querySelector(".bg-dim");
+    if(bgDim) bgDim.remove();
+
+    const need = [...inner, ...miniArt].map(p=>p.url);
+    if(bgUrl) need.push(bgUrl);
+    const imgs = new Map();
+    await Promise.all([...new Set(need)].map(async u=>{
+      const im = await loadImg(u);
+      if(im){ try{ if(im.decode) await im.decode(); }catch(e){} imgs.set(u, im); }
+    }));
+
+    /* ---- the one capture: vector and text only, nothing to wait for ---- */
+    const phoneUrl = await htmlToImage.toPng(frame, {
+      pixelRatio: SCALE, skipFonts: true, cacheBust: false, width: fw, height: fh
+    });
+    const phoneImg = await loadImg(phoneUrl);
+    if(!phoneImg) throw new Error("capture failed");
+    try{ if(phoneImg.decode) await phoneImg.decode(); }catch(e){}
+
+    /* ---- compose ---- */
+    const out = document.createElement("canvas");
+    out.width = Math.round(W*SCALE); out.height = Math.round(H*SCALE);
+    const ctx = out.getContext("2d");
+    ctx.scale(SCALE, SCALE);
+    ctx.imageSmoothingQuality = "high";
+
+    if(cv.on){
+      ctx.save();
+      ctx.beginPath(); roundRectPath(ctx, 0, 0, W, H, cv.radius); ctx.clip();
+      if(cv.mode === "image" && bgUrl && imgs.get(bgUrl)){
+        ctx.fillStyle = cv.c1; ctx.fillRect(0,0,W,H);
+        paintImage(ctx, imgs.get(bgUrl), {x:0,y:0,w:W,h:H}, cv.fit, cv.zoom, cv.px, cv.py);
+      } else if(cv.mode === "gradient"){
+        ctx.fillStyle = cssGradient(ctx, W, H, cv.angle, cv.c1, cv.c2); ctx.fillRect(0,0,W,H);
+      } else {
+        ctx.fillStyle = cv.c1; ctx.fillRect(0,0,W,H);
+      }
+      if(cv.dim > 0){ ctx.fillStyle = `rgba(0,0,0,${cv.dim/100})`; ctx.fillRect(0,0,W,H); }
+      ctx.restore();
+    }
+
+    /* the phone sits centred, under whatever scale and tilt the backdrop applies */
+    const ds = cv.on ? Math.max(0.2, (cv.devScale ?? 100)/100) : 1;
+    ctx.save();
+    ctx.translate(W/2, H/2);
+    if(cv.on && cv.tilt) ctx.rotate(cv.tilt * Math.PI/180);
+    ctx.scale(ds, ds);
+    ctx.translate(-fw/2, -fh/2);
+
+    if(state.shadows && cv.shadow > 0){
+      const sh = cv.shadow;
+      const y = 10 + sh*0.42, blur = 24 + sh*0.85, alpha = 0.06 + sh*0.0035;
+      const radius = state.frameOn ? DEVICES[state.device].br : screenR;
+      const n = 10, reach = blur*0.55;
+      for(let i = n; i >= 1; i--){
+        const f = i/n, e = reach*f, oy = y*f;
+        ctx.beginPath();
+        roundRectPath(ctx, -e, -e+oy, fw+2*e, fh+2*e, radius+e);
+        ctx.fillStyle = `rgba(0,0,0,${alpha/n})`;
+        ctx.fill();
+      }
+    }
+
+    ctx.drawImage(phoneImg, 0, 0, fw, fh);
+
+    /* photos that live inside the screen, clipped like the real layout clips them */
+    if(inner.length){
+      ctx.save();
+      ctx.beginPath(); roundRectPath(ctx, screenBox.x, screenBox.y, screenBox.w, screenBox.h, screenR); ctx.clip();
+      if(contentBox){
+        ctx.beginPath(); ctx.rect(contentBox.x, contentBox.y, contentBox.w, contentBox.h); ctx.clip();
+      }
+      if(barBoxes.length){        /* the floating bars sit on top of the list */
+        ctx.beginPath();
+        ctx.rect(screenBox.x, screenBox.y, screenBox.w, screenBox.h);
+        barBoxes.forEach(b => roundRectPath(ctx, b.box.x, b.box.y, b.box.w, b.box.h, b.r));
+        ctx.clip("evenodd");
+      }
+      inner.forEach(p=>{
+        const im = imgs.get(p.url); if(!im) return;
+        ctx.save();
+        ctx.beginPath(); roundRectPath(ctx, p.box.x, p.box.y, p.box.w, p.box.h, p.r); ctx.clip();
+        paintImage(ctx, im, p.box, "cover");
+        ctx.restore();
+      });
+      ctx.restore();
+    }
+    miniArt.forEach(p=>{
+      const im = imgs.get(p.url); if(!im) return;
+      ctx.save();
+      ctx.beginPath(); roundRectPath(ctx, p.box.x, p.box.y, p.box.w, p.box.h, p.r); ctx.clip();
+      paintImage(ctx, im, p.box, "cover");
+      ctx.restore();
+    });
+    ctx.restore();
+
+    const blob = await new Promise(res => out.toBlob(res, "image/png"));
     if(!blob) throw new Error("empty blob");
     const stamp = new Date().toISOString().slice(0,16).replace(/[:T]/g,"");
     download(blob, `apple-music-${stamp}.png`);
   }catch(err){
-    alert("이미지로 굽는 데 실패했어요. 유튜브 썸네일을 쓰는 중이라면 이미지 파일로 직접 올려 보세요.");
+    alert("이미지로 굽는 데 실패했어요. 사진이 아주 크면 실패할 수 있어요 — 조금 작은 사진으로 다시 시도해 보세요.");
     console.error(err);
   }finally{
-    added.forEach(el => el.remove());
-    restore.forEach(([el, prop, val]) => {
-      if(prop === "boxShadow") el.style.boxShadow = val;
-      else if(prop === "background") el.style.background = val;
-      else if(prop === "position") el.style.position = val;
-      else if(prop === "zIndex") el.style.zIndex = val;
-      else el.style.setProperty(prop, val);
-    });
-    if(st){ kids.forEach(k=>{ k.style.transform = ""; }); sc.scrollTop = st; }
-    viewport.style.transform = prevT; viewport.style.width = prevW; viewport.style.height = prevH;
+    holder.remove();
     exportBtn.textContent = label; exportBtn.disabled = false;
   }
 }
